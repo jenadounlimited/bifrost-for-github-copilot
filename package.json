@@ -1,0 +1,75 @@
+{
+  "name": "bifrost-for-github-copilot",
+  "publisher": "JenadoUnlimited",
+  "displayName": "Bifrost for GitHub Copilot (Unofficial)",
+  "description": "Use the Bifrost AI gateway as a GitHub Copilot Chat language model provider",
+  "version": "0.0.1",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jenadounlimited/bifrost-for-github-copilot"
+  },
+  "engines": {
+    "vscode": "^1.104.0"
+  },
+  "icon": "assets/icon.png",
+  "categories": [
+    "AI",
+    "Chat"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languageModelChatProviders": [
+      {
+        "vendor": "bifrost",
+        "displayName": "Bifrost",
+        "managementCommand": "bifrost.manage"
+      }
+    ],
+    "commands": [
+      {
+        "command": "bifrost.manage",
+        "title": "Manage Bifrost Provider"
+      },
+      {
+        "command": "bifrost.toggleEphemeralFilter",
+        "title": "Toggle Bifrost filter ephemeral data"
+      }
+    ]
+  },
+  "activationEvents": [],
+  "scripts": {
+    "vscode:prepublish": "pnpm run compile",
+    "download-api": "dts dev",
+    "postdownload-api": "dts main",
+    "postinstall": "pnpm run download-api",
+    "compile": "tsc -p ./",
+    "lint": "eslint",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "watch": "tsc -watch -p ./",
+    "test": "vitest run",
+    "test:ui": "vitest",
+    "test:coverage": "vitest run --coverage",
+    "audit": "pnpm audit"
+  },
+  "devDependencies": {
+    "@types/mocha": "^10.0.10",
+    "@types/node": "^22.13.14",
+    "@types/vscode": "^1.104.0",
+    "@typescript-eslint/eslint-plugin": "^8.69.0",
+    "@typescript-eslint/parser": "^8.69.0",
+    "@vitest/coverage-v8": "^4.1.11",
+    "@vitest/ui": "^4.1.11",
+    "@vscode/dts": "^0.4.1",
+    "@vscode/test-cli": "^0.0.15",
+    "@vscode/test-electron": "^2.4.1",
+    "@vscode/vsce": "^3.9.2",
+    "eslint": "^9.21.0",
+    "jsdom": "^30.0.1",
+    "prettier": "^3.5.3",
+    "typescript": "^5.8.2",
+    "vitest": "^4.1.11"
+  },
+  "packageManager": "pnpm@8.15.4"
+}

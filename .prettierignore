@@ -1,0 +1,8 @@
+node_modules
+out
+.vscode-test
+coverage
+src/vscode.d.ts
+.DS_Store
+*.log
+pnpm-lock.yaml

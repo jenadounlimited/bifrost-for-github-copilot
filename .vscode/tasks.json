@@ -1,0 +1,38 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "pnpm: compile",
+      "type": "npm",
+      "script": "compile",
+      "group": "build",
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "pnpm: watch",
+      "type": "npm",
+      "script": "watch",
+      "group": "build",
+      "isBackground": true,
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "pnpm: lint",
+      "type": "npm",
+      "script": "lint",
+      "group": "test"
+    },
+    {
+      "label": "pnpm: format",
+      "type": "npm",
+      "script": "format",
+      "group": "build"
+    },
+    {
+      "label": "pnpm: test",
+      "type": "npm",
+      "script": "test",
+      "group": "test"
+    }
+  ]
+}

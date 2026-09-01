@@ -1,0 +1,34 @@
+# Logs
+logs
+*.log
+npm-debug.log*
+
+# Dependencies
+node_modules
+
+# Build output
+out
+dist
+build
+
+# Test coverage
+coverage
+
+# VS Code test
+.vscode-test
+
+# Generated files
+src/vscode.d.ts
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea
+
+# Lockfile
+pnpm-lock.yaml
+
+# Distribution
+*.vsix
