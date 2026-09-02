@@ -3,7 +3,7 @@
   "publisher": "JenadoUnlimited",
   "displayName": "Bifrost for GitHub Copilot (Unofficial)",
   "description": "Use the Bifrost AI gateway as a GitHub Copilot Chat language model provider",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "license": "MIT",
   "repository": {
     "type": "git",
