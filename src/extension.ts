@@ -3,7 +3,8 @@
 import * as vscode from 'vscode';
 import { VENDOR_ID } from './constants';
 import { Logger } from './log';
-import { showManageEndpointsUI, toggleEphemeralFilter } from './manage';
+import { loadEndpoints, showManageEndpointsUI, toggleEphemeralFilter } from './manage';
+import { registerMcpServersForEndpoints } from './mcp';
 import { BifrostChatProvider, EPHEMERAL_FILTER_SECRET_KEY } from './provider';
 
 /**
@@ -25,6 +26,20 @@ export function activate(context: vscode.ExtensionContext): void {
   const providerSubscription = vscode.lm.registerLanguageModelChatProvider(VENDOR_ID, provider);
   context.subscriptions.push(providerSubscription);
 
+  // Track live MCP registrations so they can be replaced on endpoint changes (KD-M4)
+  let mcpRegistrations: vscode.Disposable[] = [];
+
+  const refreshMcpServers = async () => {
+    mcpRegistrations.forEach(d => d.dispose());
+    const endpoints = await loadEndpoints(context.secrets);
+    mcpRegistrations = registerMcpServersForEndpoints(endpoints, userAgent, logger);
+    // Push new registrations so VS Code disposes them on deactivation
+    mcpRegistrations.forEach(d => context.subscriptions.push(d));
+  };
+
+  // Initial registration on activation
+  void refreshMcpServers();
+
   // Register manage command — opens the full management UI
   context.subscriptions.push(
     vscode.commands.registerCommand('bifrost.manage', async () => {
@@ -32,7 +47,7 @@ export function activate(context: vscode.ExtensionContext): void {
         context.secrets,
         provider,
         async () => {
-          // Provider reads endpoints fresh from SecretStorage on each request — nothing to do here.
+          await refreshMcpServers();
         },
       );
     }),
