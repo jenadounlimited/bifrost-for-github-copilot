@@ -27,8 +27,5 @@ Thumbs.db
 # IDE
 .idea
 
-# Lockfile
-pnpm-lock.yaml
-
 # Distribution
 *.vsix
