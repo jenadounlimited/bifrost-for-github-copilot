@@ -1,8 +1,9 @@
-// MCP server registration tests
+// MCP server definition provider tests
 
 import { describe, expect, it, vi, beforeEach } from 'vitest';
 import * as vscode from 'vscode';
-import { registerMcpServersForEndpoints } from '../mcp';
+import { BifrostMcpProvider, registerMcpProvider } from '../mcp';
+import type { Logger } from '../log';
 import type { BifrostEndpoint } from '../types';
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -15,7 +16,9 @@ function makeEndpoint(overrides: Partial<BifrostEndpoint> = {}): BifrostEndpoint
   };
 }
 
-function makeLogger() {
+// Cast a plain object to Logger — private members (_outputChannel, _write)
+// are not needed for unit tests; all test assertions go through the public API.
+function makeLogger(): Logger {
   return {
     info: vi.fn(),
     warn: vi.fn(),
@@ -23,154 +26,148 @@ function makeLogger() {
     show: vi.fn(),
     clear: vi.fn(),
     dispose: vi.fn(),
-  };
+  } as unknown as Logger;
 }
 
-// ─── registerMcpServersForEndpoints ──────────────────────────────────────────
+const FAKE_TOKEN = {} as vscode.CancellationToken;
 
-describe('registerMcpServersForEndpoints', () => {
+// ─── BifrostMcpProvider ───────────────────────────────────────────────────────
+
+describe('BifrostMcpProvider', () => {
   const userAgent = 'test-ua/1';
-  let registerSpy: ReturnType<typeof vi.spyOn>;
 
-  beforeEach(() => {
-    vi.clearAllMocks();
-    registerSpy = vi.spyOn(vscode.lm, 'registerMcpServer').mockReturnValue({ dispose: vi.fn() });
+  it('provideMcpServerDefinitions returns one definition per endpoint', () => {
+    const logger = makeLogger();
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint(), makeEndpoint({ shortname: 'beta', url: 'https://beta.example.com/openai/v1' })]);
+
+    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+
+    expect(defs).toHaveLength(2);
   });
 
-  it('registers one MCP server for a single endpoint', () => {
+  it('derives label as "Bifrost (<shortname>)"', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint();
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint({ shortname: 'default' })]);
 
-    const disposables = registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    expect(registerSpy).toHaveBeenCalledTimes(1);
-    expect(disposables).toHaveLength(1);
+    expect(def.label).toBe('Bifrost (default)');
   });
 
-  it('registers correct name and transport type', () => {
+  it('derives URI as origin/mcp — strips /openai/v1 path', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint({ shortname: 'default' });
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint({ url: 'http://localhost:8080/openai/v1' })]);
 
-    registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    const call = registerSpy.mock.calls[0][0];
-    expect(call.name).toBe('Bifrost (default)');
-    expect(call.transport.type).toBe('http');
+    expect(def.uri.toString()).toBe('http://localhost:8080/mcp');
   });
 
-  it('derives MCP URL as origin/mcp — strips /openai/v1 path', () => {
+  it('gives each definition a distinct label and URI for multiple endpoints', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint({ url: 'http://localhost:8080/openai/v1' });
-
-    registerMcpServersForEndpoints([endpoint], userAgent, logger);
-
-    const call = registerSpy.mock.calls[0][0];
-    const url = call.transport.url.toString();
-    expect(url).toBe('http://localhost:8080/mcp');
-  });
-
-  it('registers one disposable per endpoint for multiple endpoints', () => {
-    const logger = makeLogger();
-    const endpoints = [
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([
       makeEndpoint({ shortname: 'alpha', url: 'http://alpha.example.com/openai/v1' }),
       makeEndpoint({ shortname: 'beta',  url: 'https://beta.example.com/openai/v1' }),
-      makeEndpoint({ shortname: 'gamma', url: 'https://gamma.example.com/openai/v1' }),
-    ];
+    ]);
 
-    const disposables = registerMcpServersForEndpoints(endpoints, userAgent, logger);
+    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    expect(registerSpy).toHaveBeenCalledTimes(3);
-    expect(disposables).toHaveLength(3);
-  });
-
-  it('gives each endpoint a distinct name and MCP URL', () => {
-    const logger = makeLogger();
-    const endpoints = [
-      makeEndpoint({ shortname: 'alpha', url: 'http://alpha.example.com/openai/v1' }),
-      makeEndpoint({ shortname: 'beta',  url: 'https://beta.example.com/openai/v1' }),
-    ];
-
-    registerMcpServersForEndpoints(endpoints, userAgent, logger);
-
-    const names = registerSpy.mock.calls.map(c => c[0].name);
-    const urls  = registerSpy.mock.calls.map(c => c[0].transport.url.toString());
-
-    expect(names).toEqual(['Bifrost (alpha)', 'Bifrost (beta)']);
-    expect(urls).toEqual(['http://alpha.example.com/mcp', 'https://beta.example.com/mcp']);
+    expect(defs.map(d => d.label)).toEqual(['Bifrost (alpha)', 'Bifrost (beta)']);
+    expect(defs.map(d => d.uri.toString())).toEqual([
+      'http://alpha.example.com/mcp',
+      'https://beta.example.com/mcp',
+    ]);
   });
 
   it('sets Authorization: Bearer header for sk-bf-* key', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint({ virtualKey: 'sk-bf-abc123' });
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint({ virtualKey: 'sk-bf-abc123' })]);
 
-    registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    const headers = registerSpy.mock.calls[0][0].transport.headers;
-    expect(headers['Authorization']).toBe('Bearer sk-bf-abc123');
-    expect(headers['x-bf-vk']).toBeUndefined();
+    expect(def.headers?.['Authorization']).toBe('Bearer sk-bf-abc123');
+    expect(def.headers?.['x-bf-vk']).toBeUndefined();
   });
 
   it('sets x-bf-vk header for a legacy key', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint({ virtualKey: 'vk-legacy-key' });
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint({ virtualKey: 'vk-legacy-key' })]);
 
-    registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    const headers = registerSpy.mock.calls[0][0].transport.headers;
-    expect(headers['x-bf-vk']).toBe('vk-legacy-key');
-    expect(headers['Authorization']).toBeUndefined();
+    expect(def.headers?.['x-bf-vk']).toBe('vk-legacy-key');
+    expect(def.headers?.['Authorization']).toBeUndefined();
   });
 
-  it('sets only User-Agent header when endpoint has no virtual key', () => {
+  it('sets only User-Agent when endpoint has no virtual key', () => {
     const logger = makeLogger();
-    const endpoint = makeEndpoint(); // no virtualKey
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    provider.refresh([makeEndpoint()]);
 
-    registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    const headers = registerSpy.mock.calls[0][0].transport.headers;
-    expect(headers['User-Agent']).toBe(userAgent);
-    expect(headers['Authorization']).toBeUndefined();
-    expect(headers['x-bf-vk']).toBeUndefined();
+    expect(def.headers?.['User-Agent']).toBe(userAgent);
+    expect(def.headers?.['Authorization']).toBeUndefined();
+    expect(def.headers?.['x-bf-vk']).toBeUndefined();
   });
 
-  it('does not throw when registerMcpServer throws; logs a warning; returns empty array', () => {
+  it('returns empty array when no endpoints are set', () => {
     const logger = makeLogger();
-    registerSpy.mockImplementation(() => { throw new Error('API unavailable'); });
+    const provider = new BifrostMcpProvider(userAgent, logger);
 
-    const endpoint = makeEndpoint();
-    const disposables = registerMcpServersForEndpoints([endpoint], userAgent, logger);
+    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
 
-    expect(disposables).toHaveLength(0);
-    expect(logger.warn).toHaveBeenCalledWith(
-      expect.stringContaining('API unavailable'),
-      'default',
-    );
+    expect(defs).toHaveLength(0);
   });
 
-  it('skips a failing endpoint but still registers the remaining ones', () => {
+  it('fires onDidChangeMcpServerDefinitions when refresh() is called', () => {
     const logger = makeLogger();
-    const mockDisposable = { dispose: vi.fn() };
-    registerSpy
-      .mockImplementationOnce(() => { throw new Error('oops'); })
-      .mockReturnValueOnce(mockDisposable);
+    const provider = new BifrostMcpProvider(userAgent, logger);
+    const listener = vi.fn();
+    provider.onDidChangeMcpServerDefinitions(listener);
 
-    const endpoints = [
-      makeEndpoint({ shortname: 'bad',  url: 'http://bad.example.com/openai/v1' }),
-      makeEndpoint({ shortname: 'good', url: 'https://good.example.com/openai/v1' }),
-    ];
+    provider.refresh([makeEndpoint()]);
 
-    const disposables = registerMcpServersForEndpoints(endpoints, userAgent, logger);
+    expect(listener).toHaveBeenCalledTimes(1);
+  });
+});
 
-    expect(disposables).toHaveLength(1);
-    expect(logger.warn).toHaveBeenCalledTimes(1);
-    expect(logger.info).toHaveBeenCalledTimes(1);
+// ─── registerMcpProvider ─────────────────────────────────────────────────────
+
+describe('registerMcpProvider', () => {
+  const userAgent = 'test-ua/1';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
   });
 
-  it('returns an empty array for an empty endpoint list', () => {
+  it('calls registerMcpServerDefinitionProvider and returns provider + disposable', () => {
+    const spy = vi.spyOn(vscode.lm, 'registerMcpServerDefinitionProvider');
     const logger = makeLogger();
-    const disposables = registerMcpServersForEndpoints([], userAgent, logger);
 
-    expect(registerSpy).not.toHaveBeenCalled();
-    expect(disposables).toHaveLength(0);
+    const { provider, disposable } = registerMcpProvider(userAgent, logger);
+
+    expect(spy).toHaveBeenCalledTimes(1);
+    expect(provider).toBeInstanceOf(BifrostMcpProvider);
+    expect(disposable).toHaveProperty('dispose');
+  });
+
+  it('does not throw when registerMcpServerDefinitionProvider throws; logs warning', () => {
+    vi.spyOn(vscode.lm, 'registerMcpServerDefinitionProvider').mockImplementation(() => {
+      throw new Error('API unavailable');
+    });
+    const logger = makeLogger();
+
+    const { provider, disposable } = registerMcpProvider(userAgent, logger);
+
+    expect(provider).toBeInstanceOf(BifrostMcpProvider);
+    expect(disposable).toHaveProperty('dispose');
+    expect(logger.warn).toHaveBeenCalledWith(expect.stringContaining('API unavailable'));
   });
 });

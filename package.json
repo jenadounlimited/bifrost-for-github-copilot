@@ -26,6 +26,12 @@
         "managementCommand": "bifrost.manage"
       }
     ],
+    "mcpServerDefinitionProviders": [
+      {
+        "id": "bifrost.mcp",
+        "label": "Bifrost"
+      }
+    ],
     "commands": [
       {
         "command": "bifrost.manage",

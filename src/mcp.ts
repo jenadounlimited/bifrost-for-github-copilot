@@ -2,46 +2,71 @@
 
 import * as vscode from 'vscode';
 import { buildRequestHeaders, dashboardUrl } from './auth';
-import type { BifrostEndpoint } from './types';
 import type { Logger } from './log';
+import type { BifrostEndpoint } from './types';
+
+/** Manifest id — must match contributes.mcpServerDefinitionProviders[].id in package.json */
+const MCP_PROVIDER_ID = 'bifrost.mcp';
 
 /**
- * Register one VS Code MCP server per Bifrost endpoint.
- * Returns the disposables — caller must push them onto context.subscriptions
- * or track them for re-registration on endpoint changes.
+ * VS Code MCP server definition provider for Bifrost endpoints.
  *
- * Fails silently per endpoint (logs a warning, skips) if
- * vscode.lm.registerMcpServer is unavailable or throws.
+ * Implements McpServerDefinitionProvider<McpHttpServerDefinition>:
+ * - provideMcpServerDefinitions() returns one McpHttpServerDefinition per endpoint
+ * - refresh() fires onDidChangeMcpServerDefinitions so VS Code re-queries definitions
+ *
+ * Register once via vscode.lm.registerMcpServerDefinitionProvider; call
+ * refresh() whenever the endpoint list changes.
  */
-export function registerMcpServersForEndpoints(
-  endpoints: BifrostEndpoint[],
-  userAgent: string,
-  logger: Logger,
-): vscode.Disposable[] {
-  const disposables: vscode.Disposable[] = [];
+export class BifrostMcpProvider implements vscode.McpServerDefinitionProvider<vscode.McpHttpServerDefinition> {
+  private _endpoints: BifrostEndpoint[] = [];
+  private readonly _emitter = new vscode.EventEmitter<void>();
+  readonly onDidChangeMcpServerDefinitions = this._emitter.event;
 
-  for (const endpoint of endpoints) {
-    const origin = dashboardUrl(endpoint.url);
-    const mcpUrl = `${origin}/mcp`;
+  constructor(
+    private readonly _userAgent: string,
+    private readonly _logger: Logger,
+  ) {}
 
-    try {
-      const disposable = vscode.lm.registerMcpServer({
-        name: `Bifrost (${endpoint.shortname})`,
-        transport: {
-          type: 'http',
-          url: vscode.Uri.parse(mcpUrl),
-          headers: buildRequestHeaders(endpoint, userAgent),
-        },
-      });
-      logger.info(`Registered MCP server at ${mcpUrl}`, endpoint.shortname);
-      disposables.push(disposable);
-    } catch (err) {
-      logger.warn(
-        `Failed to register MCP server at ${mcpUrl}: ${err instanceof Error ? err.message : String(err)}`,
-        endpoint.shortname,
-      );
-    }
+  /** Replace the current endpoint list and signal VS Code to re-query. */
+  refresh(endpoints: BifrostEndpoint[]): void {
+    this._endpoints = endpoints;
+    this._emitter.fire();
   }
 
-  return disposables;
+  provideMcpServerDefinitions(
+    _token: vscode.CancellationToken,
+  ): vscode.ProviderResult<vscode.McpHttpServerDefinition[]> {
+    return this._endpoints.map(endpoint => {
+      const origin = dashboardUrl(endpoint.url);
+      const mcpUrl = `${origin}/mcp`;
+      this._logger.info(`Providing MCP server definition at ${mcpUrl}`, endpoint.shortname);
+
+      return new vscode.McpHttpServerDefinition(
+        `Bifrost (${endpoint.shortname})`,
+        vscode.Uri.parse(mcpUrl),
+        buildRequestHeaders(endpoint, this._userAgent),
+      );
+    });
+  }
+}
+
+/**
+ * Register the BifrostMcpProvider with VS Code.
+ * Returns both the provider (for calling refresh()) and its registration disposable.
+ */
+export function registerMcpProvider(
+  userAgent: string,
+  logger: Logger,
+): { provider: BifrostMcpProvider; disposable: vscode.Disposable } {
+  const provider = new BifrostMcpProvider(userAgent, logger);
+  try {
+    const disposable = vscode.lm.registerMcpServerDefinitionProvider(MCP_PROVIDER_ID, provider);
+    return { provider, disposable };
+  } catch (err) {
+    logger.warn(
+      `Failed to register MCP server definition provider: ${err instanceof Error ? err.message : String(err)}`,
+    );
+    return { provider, disposable: { dispose: () => {} } };
+  }
 }

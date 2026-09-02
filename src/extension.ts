@@ -4,7 +4,7 @@ import * as vscode from 'vscode';
 import { VENDOR_ID } from './constants';
 import { Logger } from './log';
 import { loadEndpoints, showManageEndpointsUI, toggleEphemeralFilter } from './manage';
-import { registerMcpServersForEndpoints } from './mcp';
+import { registerMcpProvider } from './mcp';
 import { BifrostChatProvider, EPHEMERAL_FILTER_SECRET_KEY } from './provider';
 
 /**
@@ -26,18 +26,16 @@ export function activate(context: vscode.ExtensionContext): void {
   const providerSubscription = vscode.lm.registerLanguageModelChatProvider(VENDOR_ID, provider);
   context.subscriptions.push(providerSubscription);
 
-  // Track live MCP registrations so they can be replaced on endpoint changes (KD-M4)
-  let mcpRegistrations: vscode.Disposable[] = [];
+  // Register the MCP provider once; refresh it whenever endpoints change (KD-M4)
+  const { provider: mcpProvider, disposable: mcpDisposable } = registerMcpProvider(userAgent, logger);
+  context.subscriptions.push(mcpDisposable);
 
   const refreshMcpServers = async () => {
-    mcpRegistrations.forEach(d => d.dispose());
     const endpoints = await loadEndpoints(context.secrets);
-    mcpRegistrations = registerMcpServersForEndpoints(endpoints, userAgent, logger);
-    // Push new registrations so VS Code disposes them on deactivation
-    mcpRegistrations.forEach(d => context.subscriptions.push(d));
+    mcpProvider.refresh(endpoints);
   };
 
-  // Initial registration on activation
+  // Initial population on activation
   void refreshMcpServers();
 
   // Register manage command — opens the full management UI
