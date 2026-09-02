@@ -73,6 +73,7 @@ export class Uri {
 
 export const lm = {
   registerLanguageModelChatProvider: () => ({ dispose: () => {} }),
+  registerMcpServer: (_definition: unknown) => ({ dispose: () => {} }),
 };
 
 export const commands = {
