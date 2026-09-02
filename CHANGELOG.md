@@ -6,7 +6,7 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
-## [0.0.1] — Unreleased
+## [0.1.0] — 2025-09-23
 
 ### Added
 
@@ -21,7 +21,8 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 - **Loopback / HTTP safety** — allows HTTP for localhost; warns on remote HTTP; never blocks user choice
 - **Abort handling** — honours VS Code `CancellationToken`; `AbortController` per request; incomplete tool JSON is never flushed on abort
 - **Logging with redaction** — output channel logging; `redact()` strips `sk-bf-*` keys, Bearer tokens, and `x-bf-vk` values before writing
-- **CI pipeline** — GitHub Actions workflow: compile, lint, format-check, test, `vsce package`
+- **CI pipeline** — GitHub Actions workflow: compile, lint, format-check, test, `vsce package`; Node.js 22 and 24 matrix
+- **Release pipeline** — automated GitHub Release and VS Code Marketplace publish on `v*.*.*` tag push
 - **Test suite** — 170 tests across auth, utils, stream, models, provider, manage, log, and privacy modules; ≥80% coverage
 
 ### Notes
