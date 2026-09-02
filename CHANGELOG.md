@@ -6,7 +6,21 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
-## [0.1.0] — 2025-09-23
+## [0.2.0] — 2026-09-02
+
+### Added
+
+- **MCP auto-registration** — every configured Bifrost gateway is automatically registered as an MCP server at `{origin}/mcp` using the Streamable HTTP transport; tools appear in Copilot Agent mode alongside Copilot's own built-in tools with no extra configuration required
+- **Live MCP refresh** — adding, editing, or removing a gateway via **Manage Bifrost Provider** immediately disposes old MCP registrations and re-registers all current endpoints; no restart needed
+- **Unified auth for MCP** — the same virtual key already stored for chat completions is reused for MCP (`Authorization: Bearer` for `sk-bf-*` keys, `x-bf-vk` header for legacy keys); no new credentials or UI prompts
+
+### Changed
+
+- Test suite expanded to 181 tests (+11 MCP registration tests)
+
+---
+
+## [0.1.0] — 2026-09-01
 
 ### Added
 
@@ -38,6 +52,9 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 ## [X.Y.Z] — YYYY-MM-DD
 
 ### Added
+
 ### Changed
+
 ### Fixed
+
 ### Removed

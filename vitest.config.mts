@@ -16,6 +16,8 @@ export default defineConfig({
       exclude: [
         'src/test/**',
         'src/vscode.d.ts',
+        'src/types.ts',
+        'src/extension.ts', // VS Code entry point — pure wiring, no testable logic
       ],
       thresholds: {
         statements: 80,

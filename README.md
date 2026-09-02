@@ -8,6 +8,8 @@ VS Code extension that registers a first-class language model chat provider for 
 
 GitHub Copilot Chat in VS Code can consume third-party models through the `LanguageModelChatProvider` API. This extension registers a first-class vendor (`bifrost`) so gateway models appear in Copilot Chat's model picker, auto-discovers them from `GET {base}/models`, streams chat completions (including Copilot Agent tool calls) to `POST {base}/chat/completions`, and stores gateway URLs plus optional virtual keys in VS Code `SecretStorage`.
 
+Every configured Bifrost gateway is also automatically registered as an MCP server at `{origin}/mcp`. Tools exposed through Bifrost's MCP gateway appear in Copilot Agent mode alongside Copilot's own built-in tools — no extra configuration required.
+
 This extension talks to the existing Bifrost OpenAI-compatible HTTP API. It does not embed, fork, or ship Bifrost itself.
 
 ## Installation
@@ -46,7 +48,7 @@ docker run -p 8080:8080 maximhq/bifrost
 ### Copilot Chat Setup
 
 1. Open Copilot Chat in VS Code
-2. Click the model picker (top-right)
+2. Click the model picker
 3. Select **Manage Models...**
 4. Choose **Bifrost (Unofficial)**
 5. Select a discovered model (e.g., `openai/gpt-4o-mini`)
@@ -58,6 +60,15 @@ docker run -p 8080:8080 maximhq/bifrost
 3. Add/Edit/Remove gateway endpoints
 4. Test connection to gateways
 5. Open dashboard in browser
+
+### MCP Tools (Auto-Registered)
+
+Every gateway you add is automatically registered as an MCP server at `{origin}/mcp` using the same virtual key you already stored. No extra setup is required.
+
+- Tools appear in Copilot Agent mode under the gateway's name (e.g. **Bifrost (default)**)
+- If a gateway does not expose `/mcp`, VS Code shows it as "not connected" in the MCP tools panel — chat model access is unaffected
+- Adding, editing, or removing a gateway via **Manage Bifrost Provider** updates the MCP registrations immediately
+- To see which MCP servers are active: open the Copilot Chat panel, switch to Agent mode, and click the tools icon
 
 ### Ephemeral Filter
 
