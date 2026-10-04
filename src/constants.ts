@@ -80,6 +80,21 @@ export const MODELS_MAX_PAGES = 20;
 export const MAX_TOOLS_PER_REQUEST = 128;
 
 /**
+ * Default passthrough hyperparameters setting
+ */
+export const DEFAULT_PASSTHROUGH_HYPERPARAMETERS = false;
+
+/**
+ * Default model-specific max input tokens (when not specified)
+ */
+export const DEFAULT_MODEL_MAX_INPUT_TOKENS = 128_000;
+
+/**
+ * Default model-specific max output tokens (when not specified)
+ */
+export const DEFAULT_MODEL_MAX_OUTPUT_TOKENS = 16_000;
+
+/**
  * Set of loopback host addresses
  */
 export const LOOPBACK_HOSTS = new Set([
