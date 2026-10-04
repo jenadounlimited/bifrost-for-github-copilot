@@ -1,13 +1,13 @@
 # Bifrost for GitHub Copilot — MCP Auto-Registration
 
-| Field        | Value                                                        |
-| ------------ | ------------------------------------------------------------ |
-| **Document** | Software Design Document                                     |
-| **Feature**  | Automatic MCP Server Registration from Bifrost Endpoints     |
-| **Status**   | Draft                                                        |
-| **Date**     | 2026-01-01                                                   |
-| **Repo**     | `jenadounlimited/bifrost_for_github_copilot`                 |
-| **Depends on** | v1 extension (LM Chat Provider) — see `docs/DESIGN.md`    |
+| Field          | Value                                                    |
+| -------------- | -------------------------------------------------------- |
+| **Document**   | Software Design Document                                 |
+| **Feature**    | Automatic MCP Server Registration from Bifrost Endpoints |
+| **Status**     | Draft                                                    |
+| **Date**       | 2026-01-01                                               |
+| **Repo**       | `jenadounlimited/bifrost_for_github_copilot`             |
+| **Depends on** | v1 extension (LM Chat Provider) — see `docs/DESIGN.md`   |
 
 ---
 
@@ -56,15 +56,15 @@ KD17 in the v1 design explicitly deferred MCP registration:
 
 ## Key Decisions
 
-| #    | Decision | Rationale |
-| ---- | -------- | --------- |
+| #     | Decision                                                                                                                                                             | Rationale                                                                                                                                                                                                |
+| ----- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | KD-M1 | **Always register at `{origin}/mcp`** — derive MCP URL from the stored endpoint URL using the existing `dashboardUrl()` helper. No probe request before registering. | VS Code handles unreachable MCP servers gracefully (shows "not connected" in the tools panel). A probe would add latency on every activation and duplicate the connection test already in the Manage UI. |
-| KD-M2 | **Use `type: 'http'` (Streamable HTTP) transport.** | MCP 2025-03-26 spec; Bifrost supports it. SSE (`type: 'sse'`) is the legacy fallback and can be added later if needed. |
-| KD-M3 | **Auth via `buildRequestHeaders()`** — same function used for chat completions. | Virtual key format (`sk-bf-*` → `Authorization: Bearer`; legacy → `x-bf-vk`) is identical on the MCP surface. No new auth logic. |
-| KD-M4 | **Track live registrations as `vscode.Disposable[]`** in a mutable ref in `extension.ts`. On endpoint change: dispose all, re-register all. | Simpler than per-endpoint diffing. Registration count is bounded by the number of gateways (typically 1–5). |
-| KD-M5 | **New file `src/mcp.ts`** for registration logic. No changes to `src/provider.ts`, `src/models.ts`, or `src/auth.ts`. | Keeps the MCP surface isolated from the chat surface. Consistent with the module-per-concern layout of v1. |
-| KD-M6 | **Engine floor stays at `^1.104.0`.** `vscode.lm.registerMcpServer` is available from VS Code 1.99+, which is below the current floor. | No floor bump needed. |
-| KD-M7 | **No new `contributes` manifest entry.** Programmatic registration via the API requires no `contributes.mcpServerDefinitionProviders` or similar manifest key. | Keeps `package.json` minimal. |
+| KD-M2 | **Use `type: 'http'` (Streamable HTTP) transport.**                                                                                                                  | MCP 2025-03-26 spec; Bifrost supports it. SSE (`type: 'sse'`) is the legacy fallback and can be added later if needed.                                                                                   |
+| KD-M3 | **Auth via `buildRequestHeaders()`** — same function used for chat completions.                                                                                      | Virtual key format (`sk-bf-*` → `Authorization: Bearer`; legacy → `x-bf-vk`) is identical on the MCP surface. No new auth logic.                                                                         |
+| KD-M4 | **Track live registrations as `vscode.Disposable[]`** in a mutable ref in `extension.ts`. On endpoint change: dispose all, re-register all.                          | Simpler than per-endpoint diffing. Registration count is bounded by the number of gateways (typically 1–5).                                                                                              |
+| KD-M5 | **New file `src/mcp.ts`** for registration logic. No changes to `src/provider.ts`, `src/models.ts`, or `src/auth.ts`.                                                | Keeps the MCP surface isolated from the chat surface. Consistent with the module-per-concern layout of v1.                                                                                               |
+| KD-M6 | **Engine floor stays at `^1.104.0`.** `vscode.lm.registerMcpServer` is available from VS Code 1.99+, which is below the current floor.                               | No floor bump needed.                                                                                                                                                                                    |
+| KD-M7 | **No new `contributes` manifest entry.** Programmatic registration via the API requires no `contributes.mcpServerDefinitionProviders` or similar manifest key.       | Keeps `package.json` minimal.                                                                                                                                                                            |
 
 ---
 
@@ -160,13 +160,9 @@ export function activate(context: vscode.ExtensionContext): void {
   // Wire manage command to also refresh MCP on endpoint changes
   context.subscriptions.push(
     vscode.commands.registerCommand('bifrost.manage', async () => {
-      await showManageEndpointsUI(
-        context.secrets,
-        provider,
-        async () => {
-          await refreshMcpServers();
-        },
-      );
+      await showManageEndpointsUI(context.secrets, provider, async () => {
+        await refreshMcpServers();
+      });
     }),
   );
 
@@ -247,11 +243,11 @@ vscode.lm.registerMcpServer(definition: McpServerDefinition): vscode.Disposable;
 
 The MCP endpoint at `{origin}/mcp` is expected to use the same virtual key authentication scheme as the OpenAI surface. The existing [`buildRequestHeaders()`](../src/auth.ts) function handles all three modes:
 
-| Key format | Auth mode (auto) | Header sent |
-| ---------- | ---------------- | ----------- |
-| `sk-bf-*` | `bearer` | `Authorization: Bearer {key}` |
-| other prefix | `x-bf-vk` | `x-bf-vk: {key}` |
-| none | `auto` | (no auth headers) |
+| Key format   | Auth mode (auto) | Header sent                   |
+| ------------ | ---------------- | ----------------------------- |
+| `sk-bf-*`    | `bearer`         | `Authorization: Bearer {key}` |
+| other prefix | `x-bf-vk`        | `x-bf-vk: {key}`              |
+| none         | `auto`           | (no auth headers)             |
 
 No changes to `buildRequestHeaders()` are needed.
 
@@ -261,12 +257,12 @@ No changes to `buildRequestHeaders()` are needed.
 
 ## Error Handling
 
-| Scenario | Behaviour |
-| -------- | --------- |
-| Gateway does not expose `/mcp` | VS Code shows the server as "not connected" in the MCP tools panel. The extension logs a warning via `logger.warn`. No user-visible error pop-up. |
-| `vscode.lm.registerMcpServer` throws (API unavailable) | Wrapped in a try/catch in `registerMcpServersForEndpoints`. Logs the error; does not affect chat model registration. |
-| Endpoint has no virtual key | Registers unauthenticated (no auth headers). Bifrost's unauthenticated access policy applies. Consistent with chat model behaviour. |
-| Network error after registration | Handled by VS Code's MCP client, not the extension. The extension only registers; it does not manage the ongoing connection. |
+| Scenario                                               | Behaviour                                                                                                                                         |
+| ------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Gateway does not expose `/mcp`                         | VS Code shows the server as "not connected" in the MCP tools panel. The extension logs a warning via `logger.warn`. No user-visible error pop-up. |
+| `vscode.lm.registerMcpServer` throws (API unavailable) | Wrapped in a try/catch in `registerMcpServersForEndpoints`. Logs the error; does not affect chat model registration.                              |
+| Endpoint has no virtual key                            | Registers unauthenticated (no auth headers). Bifrost's unauthenticated access policy applies. Consistent with chat model behaviour.               |
+| Network error after registration                       | Handled by VS Code's MCP client, not the extension. The extension only registers; it does not manage the ongoing connection.                      |
 
 ---
 
@@ -283,15 +279,15 @@ No changes to `buildRequestHeaders()` are needed.
 
 ### Unit tests: `src/test/mcp.test.ts`
 
-| Test | Assertion |
-| ---- | --------- |
-| `registerMcpServersForEndpoints` with one endpoint | Calls `vscode.lm.registerMcpServer` once with `name: 'Bifrost (default)'`, `transport.type: 'http'`, URL ending in `/mcp` |
-| `registerMcpServersForEndpoints` with multiple endpoints | Returns one disposable per endpoint; each has a distinct `name` and MCP URL |
-| Endpoint with virtual key `sk-bf-abc` | Headers contain `Authorization: Bearer sk-bf-abc` |
-| Endpoint with legacy key `vk-abc` | Headers contain `x-bf-vk: vk-abc` |
-| Endpoint with no virtual key | Headers contain only `User-Agent` |
-| `registerMcpServer` throws | `registerMcpServersForEndpoints` does not throw; logs warning; returns empty array for that endpoint |
-| URL derivation from `/openai/v1` base | MCP URL is `http://localhost:8080/mcp` (not `http://localhost:8080/openai/v1/mcp`) |
+| Test                                                     | Assertion                                                                                                                 |
+| -------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `registerMcpServersForEndpoints` with one endpoint       | Calls `vscode.lm.registerMcpServer` once with `name: 'Bifrost (default)'`, `transport.type: 'http'`, URL ending in `/mcp` |
+| `registerMcpServersForEndpoints` with multiple endpoints | Returns one disposable per endpoint; each has a distinct `name` and MCP URL                                               |
+| Endpoint with virtual key `sk-bf-abc`                    | Headers contain `Authorization: Bearer sk-bf-abc`                                                                         |
+| Endpoint with legacy key `vk-abc`                        | Headers contain `x-bf-vk: vk-abc`                                                                                         |
+| Endpoint with no virtual key                             | Headers contain only `User-Agent`                                                                                         |
+| `registerMcpServer` throws                               | `registerMcpServersForEndpoints` does not throw; logs warning; returns empty array for that endpoint                      |
+| URL derivation from `/openai/v1` base                    | MCP URL is `http://localhost:8080/mcp` (not `http://localhost:8080/openai/v1/mcp`)                                        |
 
 The `vscode` mock at `src/test/__mocks__/vscode.ts` needs a stub for `vscode.lm.registerMcpServer` returning a mock disposable.
 
@@ -299,12 +295,12 @@ The `vscode` mock at `src/test/__mocks__/vscode.ts` needs a stub for `vscode.lm.
 
 ## Open Questions
 
-| # | Question | Resolution needed before |
-| - | -------- | ------------------------- |
-| OQ-1 | Does Bifrost's `/mcp` endpoint accept the same virtual key headers as `/openai/v1`? | Implementation |
-| OQ-2 | Is `vscode.lm.registerMcpServer` the correct API symbol name in the current `@types/vscode`? | Implementation — run `pnpm run download-api` and inspect `vscode.d.ts` |
-| OQ-3 | Does Bifrost expose per-user MCP server enumeration (e.g. `GET {origin}/mcp/servers`) that would allow registering named sub-servers rather than a single gateway? | Design — can ship as a follow-up |
-| OQ-4 | Are there Bifrost deployments in the field using only SSE transport (not Streamable HTTP)? If so, is there a probe or version-detection path? | Can be deferred; add SSE option to `BifrostEndpoint` config if reports emerge |
+| #    | Question                                                                                                                                                           | Resolution needed before                                                      |
+| ---- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------- |
+| OQ-1 | Does Bifrost's `/mcp` endpoint accept the same virtual key headers as `/openai/v1`?                                                                                | Implementation                                                                |
+| OQ-2 | Is `vscode.lm.registerMcpServer` the correct API symbol name in the current `@types/vscode`?                                                                       | Implementation — run `pnpm run download-api` and inspect `vscode.d.ts`        |
+| OQ-3 | Does Bifrost expose per-user MCP server enumeration (e.g. `GET {origin}/mcp/servers`) that would allow registering named sub-servers rather than a single gateway? | Design — can ship as a follow-up                                              |
+| OQ-4 | Are there Bifrost deployments in the field using only SSE transport (not Streamable HTTP)? If so, is there a probe or version-detection path?                      | Can be deferred; add SSE option to `BifrostEndpoint` config if reports emerge |
 
 ---
 

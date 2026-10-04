@@ -28,7 +28,9 @@ function textParts(reported: unknown[]): string[] {
 }
 
 function toolParts(reported: unknown[]): LanguageModelToolCallPart[] {
-  return reported.filter(p => p instanceof LanguageModelToolCallPart) as LanguageModelToolCallPart[];
+  return reported.filter(
+    p => p instanceof LanguageModelToolCallPart,
+  ) as LanguageModelToolCallPart[];
 }
 
 // ── Baseline tests ────────────────────────────────────────────────────────────
@@ -116,10 +118,7 @@ describe('SseChatParser', () => {
     const parser = new SseChatParser();
     const progress = makeProgress();
 
-    parser.processChunk(
-      `data: {"content":"hello<|tool_call_begin|>world"}\n\n`,
-      progress as never,
-    );
+    parser.processChunk(`data: {"content":"hello<|tool_call_begin|>world"}\n\n`, progress as never);
 
     const combined = textParts(progress.reported).join('');
     expect(combined).not.toContain('<|tool_call_begin|>');
@@ -134,7 +133,9 @@ describe('SseChatParser – real OpenAI SSE shape', () => {
     const progress = makeProgress();
 
     for (const line of basicTextStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const combined = textParts(progress.reported).join('');
@@ -146,7 +147,9 @@ describe('SseChatParser – real OpenAI SSE shape', () => {
     const progress = makeProgress();
 
     for (const line of nativeToolCallStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const tools = toolParts(progress.reported);
@@ -165,7 +168,9 @@ describe('SseChatParser – text-embedded tool calls', () => {
     const progress = makeProgress();
 
     for (const line of textEmbeddedToolCallStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const tools = toolParts(progress.reported);
@@ -185,7 +190,9 @@ describe('SseChatParser – mixed content and tools', () => {
     const progress = makeProgress();
 
     for (const line of mixedContentAndToolsStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const texts = textParts(progress.reported);
@@ -207,7 +214,9 @@ describe('SseChatParser – thinking content', () => {
     const progress = makeProgress();
 
     for (const line of thinkingContentStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const texts = textParts(progress.reported);
@@ -224,7 +233,9 @@ describe('SseChatParser – deduplication', () => {
     const progress = makeProgress();
 
     for (const line of deduplicatedStream.split('\n\n')) {
-      if (line.trim()) {parser.processChunk(line + '\n\n', progress as never);}
+      if (line.trim()) {
+        parser.processChunk(line + '\n\n', progress as never);
+      }
     }
 
     const tools = toolParts(progress.reported);
@@ -264,19 +275,13 @@ describe('SseChatParser – cross-chunk control token buffering', () => {
     const progress = makeProgress();
 
     // Split '<|tool_call_begin|>' across two chunks — first chunk ends mid-token
-    parser.processChunk(
-      `data: {"content":"hello <|tool_ca"}\n\n`,
-      progress as never,
-    );
+    parser.processChunk(`data: {"content":"hello <|tool_ca"}\n\n`, progress as never);
     // At this point the buffer may hold a partial token; no visible '<|tool_ca...' should leak
     const textAfterFirst = textParts(progress.reported).join('');
     expect(textAfterFirst).not.toMatch(/<\|tool_ca/);
 
     // Second chunk: completes and adds more text
-    parser.processChunk(
-      `data: {"content":"ll_begin|> world"}\n\n`,
-      progress as never,
-    );
+    parser.processChunk(`data: {"content":"ll_begin|> world"}\n\n`, progress as never);
     const combined = textParts(progress.reported).join('');
     // Control token should be stripped entirely
     expect(combined).not.toContain('<|tool_call_begin|>');

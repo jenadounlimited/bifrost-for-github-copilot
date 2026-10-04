@@ -68,17 +68,27 @@ export const env = {
 };
 
 export class Uri {
-  static parse(value: string) { return { toString: () => value, fsPath: value }; }
+  static parse(value: string) {
+    return { toString: () => value, fsPath: value };
+  }
 }
 
 export class EventEmitter<T> {
   private _listeners: ((e: T) => void)[] = [];
   event = (listener: (e: T) => void) => {
     this._listeners.push(listener);
-    return { dispose: () => { this._listeners = this._listeners.filter(l => l !== listener); } };
+    return {
+      dispose: () => {
+        this._listeners = this._listeners.filter(l => l !== listener);
+      },
+    };
   };
-  fire(event: T) { this._listeners.forEach(l => l(event)); }
-  dispose() { this._listeners = []; }
+  fire(event: T) {
+    this._listeners.forEach(l => l(event));
+  }
+  dispose() {
+    this._listeners = [];
+  }
 }
 
 export class McpHttpServerDefinition {

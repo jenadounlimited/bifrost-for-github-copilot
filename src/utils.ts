@@ -29,7 +29,12 @@ export function convertMessages(
         ? (msg as vscode.LanguageModelChatRequestMessage).content
         : (msg as vscode.LanguageModelChatMessage).content;
 
-    const parts: unknown[] = typeof rawContent === 'string' ? [new vscode.LanguageModelTextPart(rawContent)] : Array.isArray(rawContent) ? [...rawContent] : [];
+    const parts: unknown[] =
+      typeof rawContent === 'string'
+        ? [new vscode.LanguageModelTextPart(rawContent)]
+        : Array.isArray(rawContent)
+          ? [...rawContent]
+          : [];
 
     // Check if this is a tool-result message (has LanguageModelToolResultPart in content)
     const toolResultParts = parts.filter(p => p instanceof vscode.LanguageModelToolResultPart);
@@ -374,7 +379,8 @@ export function estimateTokenCount(
           charCount += part.length;
         } else if (part && typeof part === 'object') {
           if (typeof (part as OpenAIMessageImageContent & { text?: string }).text === 'string') {
-            charCount += ((part as OpenAIMessageImageContent & { text?: string }).text as string).length;
+            charCount += ((part as OpenAIMessageImageContent & { text?: string }).text as string)
+              .length;
           }
         }
       }

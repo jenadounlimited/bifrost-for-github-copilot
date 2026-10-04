@@ -96,12 +96,18 @@ describe('SecretStorage usage', () => {
     // here we verify the expected interface behaviour our extension relies on.
     const storage = new Map<string, string>();
     const secretStorage = {
-      store: async (key: string, value: string) => { storage.set(key, value); },
+      store: async (key: string, value: string) => {
+        storage.set(key, value);
+      },
       get: async (key: string) => storage.get(key),
-      delete: async (key: string) => { storage.delete(key); },
+      delete: async (key: string) => {
+        storage.delete(key);
+      },
     };
 
-    const endpoints = JSON.stringify([{ baseUrl: 'http://localhost:8080/openai/v1', shortname: 'local' }]);
+    const endpoints = JSON.stringify([
+      { baseUrl: 'http://localhost:8080/openai/v1', shortname: 'local' },
+    ]);
     await secretStorage.store('bifrost.endpoints', endpoints);
     const retrieved = await secretStorage.get('bifrost.endpoints');
     expect(retrieved).toBe(endpoints);
@@ -113,9 +119,13 @@ describe('SecretStorage usage', () => {
   it('delete() removes a stored secret', async () => {
     const storage = new Map<string, string>();
     const secretStorage = {
-      store: async (key: string, value: string) => { storage.set(key, value); },
+      store: async (key: string, value: string) => {
+        storage.set(key, value);
+      },
       get: async (key: string) => storage.get(key),
-      delete: async (key: string) => { storage.delete(key); },
+      delete: async (key: string) => {
+        storage.delete(key);
+      },
     };
 
     await secretStorage.store('bifrost.endpoints', 'some-value');
@@ -126,9 +136,13 @@ describe('SecretStorage usage', () => {
   it('virtual key stored separately is not retrievable after delete', async () => {
     const storage = new Map<string, string>();
     const secretStorage = {
-      store: async (key: string, value: string) => { storage.set(key, value); },
+      store: async (key: string, value: string) => {
+        storage.set(key, value);
+      },
       get: async (key: string) => storage.get(key),
-      delete: async (key: string) => { storage.delete(key); },
+      delete: async (key: string) => {
+        storage.delete(key);
+      },
     };
 
     const vkKey = 'bifrost.vk.my-endpoint';

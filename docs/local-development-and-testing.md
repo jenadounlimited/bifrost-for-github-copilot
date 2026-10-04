@@ -6,10 +6,10 @@ This guide covers how to build the `bifrost-for-github-copilot` VS Code extensio
 
 ## Prerequisites
 
-| Tool | Minimum version |
-|------|----------------|
-| Node.js | 22+ |
-| pnpm | 8.15.4 |
+| Tool    | Minimum version |
+| ------- | --------------- |
+| Node.js | 22+             |
+| pnpm    | 8.15.4          |
 
 Install pnpm if you don't have it:
 
@@ -75,12 +75,12 @@ pnpm run test:coverage
 
 Generates a V8 coverage report. Reports are written to `coverage/` in `text`, `json`, and `html` formats. The configured thresholds that CI enforces are:
 
-| Metric | Threshold |
-|--------|-----------|
-| Statements | 80% |
-| Lines | 80% |
-| Functions | 75% |
-| Branches | 70% |
+| Metric     | Threshold |
+| ---------- | --------- |
+| Statements | 80%       |
+| Lines      | 80%       |
+| Functions  | 75%       |
+| Branches   | 70%       |
 
 Open `coverage/index.html` in a browser to browse the full report.
 
@@ -90,16 +90,16 @@ Open `coverage/index.html` in a browser to browse the full report.
 
 All tests live under [`src/test/`](../src/test/) and are discovered by the glob `src/test/**/*.test.ts`.
 
-| File | What it tests |
-|------|--------------|
-| [`auth.test.ts`](../src/test/auth.test.ts) | URL normalization, auth mode resolution, header construction, loopback/insecure detection |
-| [`log.test.ts`](../src/test/log.test.ts) | Logger output, log level filtering |
-| [`manage.test.ts`](../src/test/manage.test.ts) | Endpoint CRUD in `SecretStorage`, QuickPick flows |
-| [`models.test.ts`](../src/test/models.test.ts) | Model list fetching, response parsing |
-| [`privacy.test.ts`](../src/test/privacy.test.ts) | Virtual key redaction, prompt non-logging, SecretStorage usage |
-| [`provider.test.ts`](../src/test/provider.test.ts) | `LanguageModelChatProvider` registration and request dispatch |
-| [`stream.test.ts`](../src/test/stream.test.ts) | `SseChatParser` — all SSE shapes, tool call buffering, abort handling |
-| [`utils.test.ts`](../src/test/utils.test.ts) | Shared utility functions |
+| File                                               | What it tests                                                                             |
+| -------------------------------------------------- | ----------------------------------------------------------------------------------------- |
+| [`auth.test.ts`](../src/test/auth.test.ts)         | URL normalization, auth mode resolution, header construction, loopback/insecure detection |
+| [`log.test.ts`](../src/test/log.test.ts)           | Logger output, log level filtering                                                        |
+| [`manage.test.ts`](../src/test/manage.test.ts)     | Endpoint CRUD in `SecretStorage`, QuickPick flows                                         |
+| [`models.test.ts`](../src/test/models.test.ts)     | Model list fetching, response parsing                                                     |
+| [`privacy.test.ts`](../src/test/privacy.test.ts)   | Virtual key redaction, prompt non-logging, SecretStorage usage                            |
+| [`provider.test.ts`](../src/test/provider.test.ts) | `LanguageModelChatProvider` registration and request dispatch                             |
+| [`stream.test.ts`](../src/test/stream.test.ts)     | `SseChatParser` — all SSE shapes, tool call buffering, abort handling                     |
+| [`utils.test.ts`](../src/test/utils.test.ts)       | Shared utility functions                                                                  |
 
 ### SSE fixtures
 

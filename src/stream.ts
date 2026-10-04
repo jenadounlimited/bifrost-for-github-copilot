@@ -237,16 +237,26 @@ export class SseChatParser {
       this._toolCallBuffers.set(index, buffer);
     }
 
-    if (tc.id) {buffer.id = tc.id as string;}
-    if (tc.name) {buffer.name = tc.name as string;}
+    if (tc.id) {
+      buffer.id = tc.id as string;
+    }
+    if (tc.name) {
+      buffer.name = tc.name as string;
+    }
 
     // OpenAI streams arguments inside a nested `function` object
     const fn = tc.function as Record<string, unknown> | undefined;
-    if (fn?.name) {buffer.name = fn.name as string;}
-    if (fn?.arguments) {buffer.arguments += fn.arguments as string;}
+    if (fn?.name) {
+      buffer.name = fn.name as string;
+    }
+    if (fn?.arguments) {
+      buffer.arguments += fn.arguments as string;
+    }
 
     // Also accept flat `arguments` (some non-OpenAI variants)
-    if (!fn && tc.arguments) {buffer.arguments += tc.arguments as string;}
+    if (!fn && tc.arguments) {
+      buffer.arguments += tc.arguments as string;
+    }
 
     this._tryEmitBufferedToolCall(index, progress);
   }
@@ -259,7 +269,9 @@ export class SseChatParser {
     progress: vscode.Progress<vscode.LanguageModelResponsePart>,
   ): void {
     const buffer = this._toolCallBuffers.get(index);
-    if (!buffer || !buffer.name) {return;}
+    if (!buffer || !buffer.name) {
+      return;
+    }
 
     let parsed: object;
     try {
@@ -290,7 +302,9 @@ export class SseChatParser {
     throwOnInvalid: boolean,
   ): void {
     for (const [_idx, buffer] of this._toolCallBuffers) {
-      if (!buffer.name) {continue;}
+      if (!buffer.name) {
+        continue;
+      }
 
       try {
         const parsed: object = JSON.parse(buffer.arguments);
@@ -299,7 +313,11 @@ export class SseChatParser {
       } catch (e) {
         if (throwOnInvalid) {
           // Log but do not throw — we must not crash the stream on malformed JSON
-          console.warn('[Bifrost] Failed to parse tool call arguments at flush:', buffer.arguments, e);
+          console.warn(
+            '[Bifrost] Failed to parse tool call arguments at flush:',
+            buffer.arguments,
+            e,
+          );
         }
       }
     }
@@ -326,22 +344,30 @@ export class SseChatParser {
     // Process all complete tool call blocks in the buffer
     while (true) {
       const beginIdx = this._textToolParserBuffer.indexOf('<|tool_call_begin|>');
-      if (beginIdx === -1) {break;}
+      if (beginIdx === -1) {
+        break;
+      }
 
       const afterBegin = this._textToolParserBuffer.slice(beginIdx + 19); // len('<|tool_call_begin|>') = 19
 
       // Header: function_name:index (index is optional)
       const headerMatch = afterBegin.match(/^([A-Za-z0-9_\-.]+)(?::(\d+))?/);
-      if (!headerMatch) {break;}
+      if (!headerMatch) {
+        break;
+      }
 
       const fnName = headerMatch[1];
       const fnIndex = headerMatch[2] ? parseInt(headerMatch[2], 10) : 0;
 
       const argBeginIdx = afterBegin.indexOf('<|tool_call_arg_begin|>');
-      if (argBeginIdx === -1) {break;} // Incomplete — wait for more chunks
+      if (argBeginIdx === -1) {
+        break;
+      } // Incomplete — wait for more chunks
 
       const argEndIdx = afterBegin.indexOf('<|tool_call_end|>', argBeginIdx);
-      if (argEndIdx === -1) {break;} // Incomplete — wait for more chunks
+      if (argEndIdx === -1) {
+        break;
+      } // Incomplete — wait for more chunks
 
       const argsJson = afterBegin.slice(argBeginIdx + 23, argEndIdx).trim(); // len('<|tool_call_arg_begin|>') = 23
 
@@ -366,14 +392,18 @@ export class SseChatParser {
     let parsed: object;
     try {
       const result: unknown = JSON.parse(argsJson);
-      if (!result || typeof result !== 'object' || Array.isArray(result)) {return;}
+      if (!result || typeof result !== 'object' || Array.isArray(result)) {
+        return;
+      }
       parsed = result;
     } catch {
       return;
     }
 
     const key = `${name}:${JSON.stringify(parsed)}`;
-    if (this._emittedTextToolCallKeys.has(key)) {return;}
+    if (this._emittedTextToolCallKeys.has(key)) {
+      return;
+    }
 
     const callId = `tct_${Math.random().toString(36).slice(2, 10)}`;
     progress.report(new vscode.LanguageModelToolCallPart(callId, name, parsed));
@@ -454,10 +484,14 @@ export class SseChatParser {
 
     for (const prefix of prefixes) {
       const idx = text.lastIndexOf(prefix);
-      if (idx === -1) {continue;}
+      if (idx === -1) {
+        continue;
+      }
       // If the text from idx doesn't contain the closing |>, it's incomplete
       const tail = text.slice(idx);
-      if (!tail.includes('|>')) {return idx;}
+      if (!tail.includes('|>')) {
+        return idx;
+      }
     }
 
     return -1;

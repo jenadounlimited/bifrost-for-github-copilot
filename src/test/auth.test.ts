@@ -70,11 +70,15 @@ describe('normalizeBaseUrl', () => {
   });
 
   it('keeps /openai/v1 as-is', () => {
-    expect(normalizeBaseUrl('http://localhost:8080/openai/v1')).toBe('http://localhost:8080/openai/v1');
+    expect(normalizeBaseUrl('http://localhost:8080/openai/v1')).toBe(
+      'http://localhost:8080/openai/v1',
+    );
   });
 
   it('converts /openai to /openai/v1', () => {
-    expect(normalizeBaseUrl('http://localhost:8080/openai')).toBe('http://localhost:8080/openai/v1');
+    expect(normalizeBaseUrl('http://localhost:8080/openai')).toBe(
+      'http://localhost:8080/openai/v1',
+    );
   });
 
   it('converts /v1 to /openai/v1', () => {
@@ -82,15 +86,21 @@ describe('normalizeBaseUrl', () => {
   });
 
   it('strips trailing slashes', () => {
-    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/')).toBe('http://localhost:8080/openai/v1');
+    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/')).toBe(
+      'http://localhost:8080/openai/v1',
+    );
   });
 
   it('strips /chat/completions suffix', () => {
-    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/chat/completions')).toBe('http://localhost:8080/openai/v1');
+    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/chat/completions')).toBe(
+      'http://localhost:8080/openai/v1',
+    );
   });
 
   it('strips /models suffix', () => {
-    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/models')).toBe('http://localhost:8080/openai/v1');
+    expect(normalizeBaseUrl('http://localhost:8080/openai/v1/models')).toBe(
+      'http://localhost:8080/openai/v1',
+    );
   });
 
   it('throws for non-http protocols', () => {
@@ -144,7 +154,9 @@ describe('isInsecureRemoteHttp', () => {
 
 describe('fallbackV1ModelsBase', () => {
   it('replaces /openai/v1 with /v1', () => {
-    expect(fallbackV1ModelsBase('http://localhost:8080/openai/v1')).toBe('http://localhost:8080/v1');
+    expect(fallbackV1ModelsBase('http://localhost:8080/openai/v1')).toBe(
+      'http://localhost:8080/v1',
+    );
   });
 
   it('leaves other paths unchanged', () => {

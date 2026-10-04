@@ -15,7 +15,10 @@ export function redact(value: string): string {
   let out = value.replace(/sk-bf-[a-zA-Z0-9_-]+/gi, '<REDACTED_VK>');
 
   // Authorization: Bearer <token>
-  out = out.replace(/Authorization:\s*Bearer\s+[a-zA-Z0-9_.-]+/gi, 'Authorization: Bearer <REDACTED>');
+  out = out.replace(
+    /Authorization:\s*Bearer\s+[a-zA-Z0-9_.-]+/gi,
+    'Authorization: Bearer <REDACTED>',
+  );
 
   // x-bf-vk header value (32+ hex/alnum chars)
   out = out.replace(/(x-bf-vk:\s*)([a-zA-Z0-9]{32,})/gi, '$1<REDACTED>');

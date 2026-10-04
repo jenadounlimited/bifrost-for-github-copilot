@@ -27,20 +27,30 @@ export const nativeToolCallStream: string =
     choices: [{ delta: { content: null }, finish_reason: null }],
   }) +
   dataLine({
-    choices: [{
-      delta: {
-        tool_calls: [{ index: 0, id: 'call_abc123', function: { name: 'get_weather', arguments: '{"city"' } }],
+    choices: [
+      {
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_abc123',
+              function: { name: 'get_weather', arguments: '{"city"' },
+            },
+          ],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   dataLine({
-    choices: [{
-      delta: {
-        tool_calls: [{ index: 0, function: { arguments: ':"Paris"}' } }],
+    choices: [
+      {
+        delta: {
+          tool_calls: [{ index: 0, function: { arguments: ':"Paris"}' } }],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   dataLine({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) +
   'data: [DONE]\n\n';
@@ -53,12 +63,15 @@ export const nativeToolCallStream: string =
  */
 export const textEmbeddedToolCallStream: string =
   dataLine({
-    choices: [{
-      delta: {
-        content: '<|tool_calls_begin|><|tool_call_begin|>get_weather:0<|tool_call_arg_begin|>{"city":"London"}<|tool_call_end|><|tool_calls_end|>',
+    choices: [
+      {
+        delta: {
+          content:
+            '<|tool_calls_begin|><|tool_call_begin|>get_weather:0<|tool_call_arg_begin|>{"city":"London"}<|tool_call_end|><|tool_calls_end|>',
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   dataLine({ choices: [{ delta: {}, finish_reason: 'stop' }] }) +
   'data: [DONE]\n\n';
@@ -72,12 +85,20 @@ export const textEmbeddedToolCallStream: string =
 export const mixedContentAndToolsStream: string =
   dataLine({ choices: [{ delta: { content: 'Let me check that. ' }, finish_reason: null }] }) +
   dataLine({
-    choices: [{
-      delta: {
-        tool_calls: [{ index: 0, id: 'call_xyz', function: { name: 'search', arguments: '{"q":"weather"}' } }],
+    choices: [
+      {
+        delta: {
+          tool_calls: [
+            {
+              index: 0,
+              id: 'call_xyz',
+              function: { name: 'search', arguments: '{"q":"weather"}' },
+            },
+          ],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   dataLine({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) +
   'data: [DONE]\n\n';
@@ -88,7 +109,9 @@ export const mixedContentAndToolsStream: string =
  * Stream with a `reasoning_content` delta (extended thinking / o-series models).
  */
 export const thinkingContentStream: string =
-  dataLine({ choices: [{ delta: { reasoning_content: 'Step 1: analyse the query.' }, finish_reason: null }] }) +
+  dataLine({
+    choices: [{ delta: { reasoning_content: 'Step 1: analyse the query.' }, finish_reason: null }],
+  }) +
   dataLine({ choices: [{ delta: { content: 'The answer is 42.' }, finish_reason: 'stop' }] }) +
   'data: [DONE]\n\n';
 
@@ -98,15 +121,16 @@ export const thinkingContentStream: string =
  * Incomplete stream — arguments never finish, no [DONE].
  * Used to verify that abort() suppresses flushing of incomplete JSON.
  */
-export const truncatedStream: string =
-  dataLine({
-    choices: [{
+export const truncatedStream: string = dataLine({
+  choices: [
+    {
       delta: {
         tool_calls: [{ index: 0, id: 'call_trunc', function: { name: 'fn', arguments: '{"x"' } }],
       },
       finish_reason: null,
-    }],
-  });
+    },
+  ],
+});
 // No [DONE] — stream is cut off
 
 // ── Deduplicated native + text-embedded ──────────────────────────────────────
@@ -117,20 +141,27 @@ export const truncatedStream: string =
  */
 export const deduplicatedStream: string =
   dataLine({
-    choices: [{
-      delta: {
-        tool_calls: [{ index: 0, id: 'call_dedup', function: { name: 'get_info', arguments: '{"id":1}' } }],
+    choices: [
+      {
+        delta: {
+          tool_calls: [
+            { index: 0, id: 'call_dedup', function: { name: 'get_info', arguments: '{"id":1}' } },
+          ],
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   dataLine({ choices: [{ delta: {}, finish_reason: 'tool_calls' }] }) +
   dataLine({
-    choices: [{
-      delta: {
-        content: '<|tool_calls_begin|><|tool_call_begin|>get_info:0<|tool_call_arg_begin|>{"id":1}<|tool_call_end|><|tool_calls_end|>',
+    choices: [
+      {
+        delta: {
+          content:
+            '<|tool_calls_begin|><|tool_call_begin|>get_info:0<|tool_call_arg_begin|>{"id":1}<|tool_call_end|><|tool_calls_end|>',
+        },
+        finish_reason: null,
       },
-      finish_reason: null,
-    }],
+    ],
   }) +
   'data: [DONE]\n\n';

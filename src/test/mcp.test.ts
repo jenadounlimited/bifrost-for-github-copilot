@@ -39,9 +39,14 @@ describe('BifrostMcpProvider', () => {
   it('provideMcpServerDefinitions returns one definition per endpoint', () => {
     const logger = makeLogger();
     const provider = new BifrostMcpProvider(userAgent, logger);
-    provider.refresh([makeEndpoint(), makeEndpoint({ shortname: 'beta', url: 'https://beta.example.com/openai/v1' })]);
+    provider.refresh([
+      makeEndpoint(),
+      makeEndpoint({ shortname: 'beta', url: 'https://beta.example.com/openai/v1' }),
+    ]);
 
-    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const defs = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(defs).toHaveLength(2);
   });
@@ -51,7 +56,9 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([makeEndpoint({ shortname: 'default' })]);
 
-    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const [def] = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(def.label).toBe('Bifrost (default)');
   });
@@ -61,7 +68,9 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([makeEndpoint({ url: 'http://localhost:8080/openai/v1' })]);
 
-    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const [def] = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(def.uri.toString()).toBe('http://localhost:8080/mcp');
   });
@@ -71,10 +80,12 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([
       makeEndpoint({ shortname: 'alpha', url: 'http://alpha.example.com/openai/v1' }),
-      makeEndpoint({ shortname: 'beta',  url: 'https://beta.example.com/openai/v1' }),
+      makeEndpoint({ shortname: 'beta', url: 'https://beta.example.com/openai/v1' }),
     ]);
 
-    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const defs = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(defs.map(d => d.label)).toEqual(['Bifrost (alpha)', 'Bifrost (beta)']);
     expect(defs.map(d => d.uri.toString())).toEqual([
@@ -88,7 +99,9 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([makeEndpoint({ virtualKey: 'sk-bf-abc123' })]);
 
-    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const [def] = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(def.headers?.['Authorization']).toBe('Bearer sk-bf-abc123');
     expect(def.headers?.['x-bf-vk']).toBeUndefined();
@@ -99,7 +112,9 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([makeEndpoint({ virtualKey: 'vk-legacy-key' })]);
 
-    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const [def] = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(def.headers?.['x-bf-vk']).toBe('vk-legacy-key');
     expect(def.headers?.['Authorization']).toBeUndefined();
@@ -110,7 +125,9 @@ describe('BifrostMcpProvider', () => {
     const provider = new BifrostMcpProvider(userAgent, logger);
     provider.refresh([makeEndpoint()]);
 
-    const [def] = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const [def] = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(def.headers?.['User-Agent']).toBe(userAgent);
     expect(def.headers?.['Authorization']).toBeUndefined();
@@ -121,7 +138,9 @@ describe('BifrostMcpProvider', () => {
     const logger = makeLogger();
     const provider = new BifrostMcpProvider(userAgent, logger);
 
-    const defs = provider.provideMcpServerDefinitions(FAKE_TOKEN) as vscode.McpHttpServerDefinition[];
+    const defs = provider.provideMcpServerDefinitions(
+      FAKE_TOKEN,
+    ) as vscode.McpHttpServerDefinition[];
 
     expect(defs).toHaveLength(0);
   });

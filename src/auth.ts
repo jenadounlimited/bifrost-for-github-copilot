@@ -10,7 +10,9 @@ export type { BifrostAuthMode };
  * - KD5: If virtual key starts with `sk-bf-`, use "bearer"
  * - Otherwise use "x-bf-vk" (legacy keys)
  */
-export function resolveAuthMode(endpoint: Pick<BifrostEndpoint, 'virtualKey' | 'authMode'>): BifrostAuthMode {
+export function resolveAuthMode(
+  endpoint: Pick<BifrostEndpoint, 'virtualKey' | 'authMode'>,
+): BifrostAuthMode {
   const { authMode, virtualKey } = endpoint;
 
   // If explicit mode and not auto, use it
@@ -175,4 +177,3 @@ export function listingAbortSignal(): AbortSignal {
   setTimeout(() => controller.abort(new Error('Listing request timed out')), LIST_FETCH_TIMEOUT_MS);
   return controller.signal;
 }
-

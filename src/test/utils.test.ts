@@ -63,7 +63,9 @@ describe('convertMessages', () => {
   it('converts a tool result message', () => {
     const msg = {
       role: LanguageModelChatMessageRole.User,
-      content: [new LanguageModelToolResultPart('call_1', [new LanguageModelTextPart('result text')])],
+      content: [
+        new LanguageModelToolResultPart('call_1', [new LanguageModelTextPart('result text')]),
+      ],
       name: undefined,
     };
     const result = convertMessages([msg]);
@@ -164,7 +166,12 @@ describe('estimateTokenCount', () => {
 
   it('includes tool schema in estimate', () => {
     const messages = [{ role: 'user' as const, content: '' }];
-    const tools = [{ type: 'function' as const, function: { name: 'f', parameters: { type: 'object', properties: {}, required: [] } } }];
+    const tools = [
+      {
+        type: 'function' as const,
+        function: { name: 'f', parameters: { type: 'object', properties: {}, required: [] } },
+      },
+    ];
     const withTools = estimateTokenCount(messages, tools);
     expect(withTools).toBeGreaterThan(0);
   });
@@ -191,14 +198,16 @@ describe('checkTokenLimit', () => {
 
 describe('convertTools – schema sanitization', () => {
   it('drops unknown schema keywords', () => {
-    const tools = [{
-      name: 'tool',
-      description: '',
-      inputSchema: {
-        type: 'object',
-        properties: { x: { type: 'string', unknownProp: 'drop-me' } },
+    const tools = [
+      {
+        name: 'tool',
+        description: '',
+        inputSchema: {
+          type: 'object',
+          properties: { x: { type: 'string', unknownProp: 'drop-me' } },
+        },
       },
-    }];
+    ];
     const result = convertTools(tools)!;
     const prop = result[0].function.parameters.properties!['x'] as Record<string, unknown>;
     expect(prop.unknownProp).toBeUndefined();
@@ -212,25 +221,29 @@ describe('convertTools – schema sanitization', () => {
   });
 
   it('defaults array items to {type: string}', () => {
-    const tools = [{
-      name: 'tool',
-      description: '',
-      inputSchema: { type: 'object', properties: { tags: { type: 'array' } } },
-    }];
+    const tools = [
+      {
+        name: 'tool',
+        description: '',
+        inputSchema: { type: 'object', properties: { tags: { type: 'array' } } },
+      },
+    ];
     const result = convertTools(tools)!;
     const tags = result[0].function.parameters.properties!['tags'] as Record<string, unknown>;
     expect(tags.items).toEqual({ type: 'string' });
   });
 
   it('coerces number to integer when description contains "id"', () => {
-    const tools = [{
-      name: 'tool',
-      description: '',
-      inputSchema: {
-        type: 'object',
-        properties: { user_id: { type: 'number', description: 'the id' } },
+    const tools = [
+      {
+        name: 'tool',
+        description: '',
+        inputSchema: {
+          type: 'object',
+          properties: { user_id: { type: 'number', description: 'the id' } },
+        },
       },
-    }];
+    ];
     const result = convertTools(tools)!;
     const prop = result[0].function.parameters.properties!['user_id'] as Record<string, unknown>;
     expect(prop.type).toBe('integer');
@@ -239,16 +252,18 @@ describe('convertTools – schema sanitization', () => {
   it('strips anyOf (unknown keyword) and defaults type to object', () => {
     // anyOf is not in the allowed-keys list, so it is dropped.
     // The resulting property gets type='object' (the default).
-    const tools = [{
-      name: 'tool',
-      description: '',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          val: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+    const tools = [
+      {
+        name: 'tool',
+        description: '',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            val: { anyOf: [{ type: 'string' }, { type: 'number' }] },
+          },
         },
       },
-    }];
+    ];
     const result = convertTools(tools)!;
     const prop = result[0].function.parameters.properties!['val'] as Record<string, unknown>;
     expect(prop.anyOf).toBeUndefined();
@@ -257,19 +272,21 @@ describe('convertTools – schema sanitization', () => {
   });
 
   it('recursively sanitizes nested properties', () => {
-    const tools = [{
-      name: 'tool',
-      description: '',
-      inputSchema: {
-        type: 'object',
-        properties: {
-          nested: {
-            type: 'object',
-            properties: { deep: { type: 'string', $schema: 'drop' } },
+    const tools = [
+      {
+        name: 'tool',
+        description: '',
+        inputSchema: {
+          type: 'object',
+          properties: {
+            nested: {
+              type: 'object',
+              properties: { deep: { type: 'string', $schema: 'drop' } },
+            },
           },
         },
       },
-    }];
+    ];
     const result = convertTools(tools)!;
     const nested = result[0].function.parameters.properties!['nested'] as Record<string, unknown>;
     const deep = (nested.properties as Record<string, unknown>)['deep'] as Record<string, unknown>;
@@ -281,7 +298,9 @@ describe('convertTools – schema sanitization', () => {
 
 describe('validateRequest', () => {
   it('passes for a valid user-last message array', () => {
-    expect(() => validateRequest([{ role: 'user', content: 'hi' }], undefined, undefined)).not.toThrow();
+    expect(() =>
+      validateRequest([{ role: 'user', content: 'hi' }], undefined, undefined),
+    ).not.toThrow();
   });
 
   it('throws when messages array is empty', () => {
@@ -289,15 +308,22 @@ describe('validateRequest', () => {
   });
 
   it('throws when last message is from assistant', () => {
-    expect(() => validateRequest(
-      [{ role: 'user', content: 'hi' }, { role: 'assistant', content: 'yo' }],
-      undefined,
-      undefined,
-    )).toThrow(/Last message/);
+    expect(() =>
+      validateRequest(
+        [
+          { role: 'user', content: 'hi' },
+          { role: 'assistant', content: 'yo' },
+        ],
+        undefined,
+        undefined,
+      ),
+    ).toThrow(/Last message/);
   });
 
   it('passes when last message is system', () => {
-    expect(() => validateRequest([{ role: 'system', content: 'sys' }], undefined, undefined)).not.toThrow();
+    expect(() =>
+      validateRequest([{ role: 'system', content: 'sys' }], undefined, undefined),
+    ).not.toThrow();
   });
 });
 
@@ -305,12 +331,22 @@ describe('validateRequest', () => {
 
 describe('validateTools', () => {
   it('passes for valid tool names', () => {
-    const tools = [{ type: 'function' as const, function: { name: 'valid_tool-1', parameters: { type: 'object' } } }];
+    const tools = [
+      {
+        type: 'function' as const,
+        function: { name: 'valid_tool-1', parameters: { type: 'object' } },
+      },
+    ];
     expect(() => validateTools(tools)).not.toThrow();
   });
 
   it('throws for invalid tool names', () => {
-    const tools = [{ type: 'function' as const, function: { name: 'bad name!', parameters: { type: 'object' } } }];
+    const tools = [
+      {
+        type: 'function' as const,
+        function: { name: 'bad name!', parameters: { type: 'object' } },
+      },
+    ];
     expect(() => validateTools(tools)).toThrow(/Invalid tool names/);
   });
 });
@@ -326,7 +362,12 @@ describe('estimateMessagesTokens', () => {
 
 describe('estimateToolTokens', () => {
   it('returns token count based on JSON-serialized tool size', () => {
-    const tools = [{ type: 'function' as const, function: { name: 'f', parameters: { type: 'object', properties: {}, required: [] } } }];
+    const tools = [
+      {
+        type: 'function' as const,
+        function: { name: 'f', parameters: { type: 'object', properties: {}, required: [] } },
+      },
+    ];
     expect(estimateToolTokens(tools)).toBeGreaterThan(0);
   });
 });
