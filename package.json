@@ -26,6 +26,15 @@
         "managementCommand": "bifrost.manage"
       }
     ],
+    "menus": {
+      "languageModelChat/model": [
+        {
+          "command": "bifrost.manageModelLimits",
+          "when": "languageModelChatVendor == bifrost",
+          "group": "navigation"
+        }
+      ]
+    },
     "mcpServerDefinitionProviders": [
       {
         "id": "bifrost.mcp",
@@ -40,6 +49,10 @@
       {
         "command": "bifrost.toggleEphemeralFilter",
         "title": "Toggle Bifrost filter ephemeral data"
+      },
+      {
+        "command": "bifrost.manageModelLimits",
+        "title": "Manage Model Limits"
       }
     ]
   },

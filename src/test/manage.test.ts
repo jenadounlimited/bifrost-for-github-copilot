@@ -15,8 +15,10 @@ import {
   promptMaxOutputTokens,
   promptShortname,
   promptUrl,
+  promptPassthroughHyperparameters,
+  promptModelTokenLimits,
 } from '../manage';
-import type { BifrostEndpoint } from '../types';
+import type { BifrostEndpoint, ModelTokenLimits } from '../types';
 
 // ─── Mocks ────────────────────────────────────────────────────────────────────
 
@@ -24,8 +26,14 @@ function makeSecrets(initial: Record<string, string> = {}): vscode.SecretStorage
   const store = { ...initial };
   return {
     get: (k: string) => Promise.resolve(store[k]),
-    store: (k: string, v: string) => { store[k] = v; return Promise.resolve(); },
-    delete: (k: string) => { delete store[k]; return Promise.resolve(); },
+    store: (k: string, v: string) => {
+      store[k] = v;
+      return Promise.resolve();
+    },
+    delete: (k: string) => {
+      delete store[k];
+      return Promise.resolve();
+    },
     keys: () => Promise.resolve(Object.keys(store)),
     onDidChange: { event: () => ({ dispose: () => {} }) } as never,
   };
@@ -47,6 +55,8 @@ function mockWindow(overrides: Partial<typeof vscode.window>) {
 const sampleEndpoint: BifrostEndpoint = {
   shortname: 'local',
   url: 'http://localhost:8080/openai/v1',
+  passthroughHyperparameters: false,
+  modelTokenLimits: [],
 };
 
 beforeEach(() => {
@@ -85,15 +95,24 @@ describe('upsertEndpoint', () => {
 
   it('replaces an existing endpoint by shortname', async () => {
     const secrets = makeSecrets({ 'bifrost.endpoints': JSON.stringify([sampleEndpoint]) });
-    const updated = await upsertEndpoint(secrets, { ...sampleEndpoint, url: 'http://localhost:9090/openai/v1' });
+    const updated = await upsertEndpoint(secrets, {
+      ...sampleEndpoint,
+      url: 'http://localhost:9090/openai/v1',
+    });
     expect(updated).toHaveLength(1);
     expect(updated[0].url).toBe('http://localhost:9090/openai/v1');
   });
 
   it('preserves other endpoints when upserting', async () => {
-    const other: BifrostEndpoint = { shortname: 'remote', url: 'https://api.example.com/openai/v1' };
+    const other: BifrostEndpoint = {
+      shortname: 'remote',
+      url: 'https://api.example.com/openai/v1',
+    };
     const secrets = makeSecrets({ 'bifrost.endpoints': JSON.stringify([sampleEndpoint, other]) });
-    const updated = await upsertEndpoint(secrets, { ...sampleEndpoint, url: 'http://localhost:9999/openai/v1' });
+    const updated = await upsertEndpoint(secrets, {
+      ...sampleEndpoint,
+      url: 'http://localhost:9999/openai/v1',
+    });
     expect(updated).toHaveLength(2);
     expect(updated.find(e => e.shortname === 'remote')).toBeDefined();
   });
@@ -106,10 +125,23 @@ describe('addEndpoint', () => {
     const secrets = makeSecrets();
     const onChange = makeNoopChange();
 
-    // Sequence: URL → shortname → virtual key → timeout → max tokens
+    // Sequence: URL → shortname → virtual key → timeout → max tokens → passthrough → model limits action
     const inputs = ['http://localhost:8080/openai/v1', 'local', '', '5000', '8192'];
     let callIdx = 0;
-    mockWindow({ showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])) });
+    let quickPickIdx = 0;
+    mockWindow({
+      showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])),
+    });
+    mockWindow({
+      showQuickPick: vi.fn().mockImplementation(() => {
+        if (quickPickIdx === 0) {
+          quickPickIdx++;
+          return Promise.resolve({ value: false, label: '$(circle-slash) Disabled' });
+        } else {
+          return Promise.resolve({ label: '$(trash) Clear All Limits' });
+        }
+      }),
+    });
     mockWindow({ showWarningMessage: vi.fn().mockResolvedValue(undefined) });
     mockWindow({ showInformationMessage: vi.fn().mockResolvedValue(undefined) });
 
@@ -121,6 +153,8 @@ describe('addEndpoint', () => {
     expect(stored[0].shortname).toBe('local');
     expect(stored[0].requestTimeoutMs).toBe(5000);
     expect(stored[0].maxOutputTokens).toBe(8192);
+    expect(stored[0].passthroughHyperparameters).toBe(false);
+    expect(stored[0].modelTokenLimits).toEqual([]);
   });
 
   it('does nothing when user cancels URL prompt', async () => {
@@ -138,9 +172,22 @@ describe('addEndpoint', () => {
     const onChange = makeNoopChange();
 
     // blank = no timeout, no max tokens, no virtual key
-    const inputs = ['http://localhost:8080/openai/v1', 'local', '', '', ''];
+    const inputs = ['http://localhost:8080/openai/v1', 'local', '', '', '', ''];
     let callIdx = 0;
-    mockWindow({ showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])) });
+    let quickPickIdx = 0;
+    mockWindow({
+      showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])),
+    });
+    mockWindow({
+      showQuickPick: vi.fn().mockImplementation(() => {
+        if (quickPickIdx === 0) {
+          quickPickIdx++;
+          return Promise.resolve({ value: false, label: '$(circle-slash) Disabled' });
+        } else {
+          return Promise.resolve({ label: '$(trash) Clear All Limits' });
+        }
+      }),
+    });
     mockWindow({ showWarningMessage: vi.fn().mockResolvedValue(undefined) });
     mockWindow({ showInformationMessage: vi.fn().mockResolvedValue(undefined) });
 
@@ -150,6 +197,8 @@ describe('addEndpoint', () => {
     expect(stored[0].requestTimeoutMs).toBeUndefined();
     expect(stored[0].maxOutputTokens).toBeUndefined();
     expect(stored[0].virtualKey).toBeUndefined();
+    expect(stored[0].passthroughHyperparameters).toBe(false);
+    expect(stored[0].modelTokenLimits).toEqual([]);
   });
 });
 
@@ -161,11 +210,27 @@ describe('editEndpoint', () => {
     const onChange = makeNoopChange();
 
     // QuickPick selects the only endpoint; then all inputs use updated values
-    const qp = vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint });
-    const inputs = ['http://localhost:9090/openai/v1', 'local', '', '3000', '4096'];
+    const qp = vi.fn().mockResolvedValue({
+      label: 'local',
+      description: sampleEndpoint.url,
+      detail: '',
+      endpoint: sampleEndpoint,
+    });
+    const inputs = ['http://localhost:9090/openai/v1', 'local', '', '3000', '4096', ''];
     let callIdx = 0;
+    let quickPickIdx = 0;
     mockWindow({
-      showQuickPick: qp,
+      showQuickPick: vi.fn().mockImplementation(() => {
+        if (quickPickIdx === 0) {
+          quickPickIdx++;
+          return qp();
+        } else if (quickPickIdx === 1) {
+          quickPickIdx++;
+          return Promise.resolve({ value: true, label: '$(check) Enabled' });
+        } else {
+          return Promise.resolve({ label: '$(trash) Clear All Limits' });
+        }
+      }),
       showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])),
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
       showInformationMessage: vi.fn().mockResolvedValue(undefined),
@@ -201,7 +266,12 @@ describe('removeEndpoint', () => {
     const onChange = makeNoopChange();
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showWarningMessage: vi.fn().mockResolvedValue('Remove'),
       showInformationMessage: vi.fn().mockResolvedValue(undefined),
     });
@@ -217,7 +287,12 @@ describe('removeEndpoint', () => {
     const onChange = makeNoopChange();
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showWarningMessage: vi.fn().mockResolvedValue(undefined), // user dismissed
       showInformationMessage: vi.fn().mockResolvedValue(undefined),
     });
@@ -237,17 +312,25 @@ describe('testConnection', () => {
     const info = vi.fn().mockResolvedValue(undefined);
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showInformationMessage: info,
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
     });
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'gpt-4o' }] }),
-      text: async () => '',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: 'gpt-4o' }] }),
+        text: async () => '',
+      }),
+    );
 
     try {
       await testConnection(secrets);
@@ -262,16 +345,24 @@ describe('testConnection', () => {
     const errFn = vi.fn().mockResolvedValue(undefined);
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showErrorMessage: errFn,
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
     });
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: false,
-      status: 401,
-      text: async () => 'Unauthorized',
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: false,
+        status: 401,
+        text: async () => 'Unauthorized',
+      }),
+    );
 
     try {
       await testConnection(secrets);
@@ -286,7 +377,12 @@ describe('testConnection', () => {
     const errFn = vi.fn().mockResolvedValue(undefined);
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showErrorMessage: errFn,
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
     });
@@ -310,7 +406,12 @@ describe('openDashboard', () => {
     const openExternal = vi.fn().mockResolvedValue(true);
 
     mockWindow({
-      showQuickPick: vi.fn().mockResolvedValue({ label: 'local', description: sampleEndpoint.url, detail: '', endpoint: sampleEndpoint }),
+      showQuickPick: vi.fn().mockResolvedValue({
+        label: 'local',
+        description: sampleEndpoint.url,
+        detail: '',
+        endpoint: sampleEndpoint,
+      }),
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
     });
     Object.assign(vscode.env, { openExternal });
@@ -376,17 +477,19 @@ describe('promptRequestTimeout', () => {
     // Call the validateInput function inline by spying on showInputBox and extracting opts
     let capturedOpts: { validateInput?: (v: string) => string | undefined } | undefined;
     mockWindow({
-      showInputBox: vi.fn().mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
-        capturedOpts = opts;
-        return Promise.resolve('5000');
-      }),
+      showInputBox: vi
+        .fn()
+        .mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
+          capturedOpts = opts;
+          return Promise.resolve('5000');
+        }),
     });
     await promptRequestTimeout();
 
-    expect(capturedOpts?.validateInput?.('500')).toMatch(/Minimum/);  // below 1000
+    expect(capturedOpts?.validateInput?.('500')).toMatch(/Minimum/); // below 1000
     expect(capturedOpts?.validateInput?.('-1')).toMatch(/non-negative/);
-    expect(capturedOpts?.validateInput?.('')).toBeUndefined();         // blank is valid
-    expect(capturedOpts?.validateInput?.('5000')).toBeUndefined();     // valid
+    expect(capturedOpts?.validateInput?.('')).toBeUndefined(); // blank is valid
+    expect(capturedOpts?.validateInput?.('5000')).toBeUndefined(); // valid
   });
 });
 
@@ -409,10 +512,12 @@ describe('promptMaxOutputTokens', () => {
   it('rejects non-positive values via validateInput', async () => {
     let capturedOpts: { validateInput?: (v: string) => string | undefined } | undefined;
     mockWindow({
-      showInputBox: vi.fn().mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
-        capturedOpts = opts;
-        return Promise.resolve('4096');
-      }),
+      showInputBox: vi
+        .fn()
+        .mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
+          capturedOpts = opts;
+          return Promise.resolve('4096');
+        }),
     });
     await promptMaxOutputTokens();
 
@@ -426,10 +531,12 @@ describe('promptShortname', () => {
   it('rejects invalid names and accepts valid names via validateInput', async () => {
     let capturedOpts: { validateInput?: (v: string) => string | undefined } | undefined;
     mockWindow({
-      showInputBox: vi.fn().mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
-        capturedOpts = opts;
-        return Promise.resolve('valid');
-      }),
+      showInputBox: vi
+        .fn()
+        .mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
+          capturedOpts = opts;
+          return Promise.resolve('valid');
+        }),
     });
     await promptShortname();
 
@@ -446,10 +553,12 @@ describe('promptUrl', () => {
   it('rejects non-http URLs via validateInput', async () => {
     let capturedOpts: { validateInput?: (v: string) => string | undefined } | undefined;
     mockWindow({
-      showInputBox: vi.fn().mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
-        capturedOpts = opts;
-        return Promise.resolve('http://localhost:8080/openai/v1');
-      }),
+      showInputBox: vi
+        .fn()
+        .mockImplementation((opts: { validateInput?: (v: string) => string | undefined }) => {
+          capturedOpts = opts;
+          return Promise.resolve('http://localhost:8080/openai/v1');
+        }),
       showWarningMessage: vi.fn().mockResolvedValue(undefined),
     });
     await promptUrl();
@@ -462,5 +571,90 @@ describe('promptUrl', () => {
   it('returns undefined when user cancels', async () => {
     mockWindow({ showInputBox: vi.fn().mockResolvedValue(undefined) });
     expect(await promptUrl()).toBeUndefined();
+  });
+});
+
+describe('promptPassthroughHyperparameters', () => {
+  it('returns true when enabled', async () => {
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue({ value: true, label: '$(check) Enabled' }),
+    });
+    expect(await promptPassthroughHyperparameters()).toBe(true);
+  });
+
+  it('returns false when disabled', async () => {
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue({ value: false, label: '$(circle-slash) Disabled' }),
+    });
+    expect(await promptPassthroughHyperparameters()).toBe(false);
+  });
+
+  it('returns null on cancel', async () => {
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue(undefined),
+    });
+    expect(await promptPassthroughHyperparameters()).toBeNull();
+  });
+});
+
+describe('promptModelTokenLimits', () => {
+  it('returns null on cancel', async () => {
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue(undefined),
+    });
+    expect(await promptModelTokenLimits()).toBeNull();
+  });
+
+  it('clears all limits when selected', async () => {
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue({ label: '$(trash) Clear All Limits' }),
+    });
+    const existing: ModelTokenLimits[] = [{ modelId: 'gpt-4', maxOutputTokens: 8192 }];
+    expect(await promptModelTokenLimits(existing)).toEqual([]);
+  });
+
+  it('adds a new model limit', async () => {
+    const inputs = ['gpt-4', '128000', '8192'];
+    let callIdx = 0;
+    mockWindow({
+      showQuickPick: vi.fn().mockResolvedValue({ label: '$(add) Add Model Limit' }),
+      showInputBox: vi.fn().mockImplementation(() => Promise.resolve(inputs[callIdx++])),
+    });
+    const result = await promptModelTokenLimits([]);
+    if (result !== null) {
+      expect(result).toHaveLength(1);
+      expect(result[0].modelId).toBe('gpt-4');
+      expect(result[0].maxInputTokens).toBe(128000);
+      expect(result[0].maxOutputTokens).toBe(8192);
+    } else {
+      expect.fail('Expected model limits but got null');
+    }
+  });
+
+  it('edits all model limits', async () => {
+    const existing: ModelTokenLimits[] = [{ modelId: 'gpt-4', maxOutputTokens: 4096 }];
+    let callIdx = 0;
+    const quickPickCalls = [
+      { label: '$(gear) Edit All Limits' },
+      {
+        label: 'gpt-4',
+        description: 'output: 4096',
+        limit: existing[0],
+      },
+    ];
+    mockWindow({
+      showQuickPick: vi.fn().mockImplementation(() => Promise.resolve(quickPickCalls[callIdx++])),
+    });
+    let editCallIdx = 0;
+    const editInputs = ['', '8192']; // blank for maxInputTokens, 8192 for maxOutputTokens
+    mockWindow({
+      showInputBox: vi.fn().mockImplementation(() => Promise.resolve(editInputs[editCallIdx++])),
+    });
+    const result = await promptModelTokenLimits(existing);
+    if (result !== null) {
+      expect(result[0].maxOutputTokens).toBe(8192);
+    } else {
+      expect.fail('Expected model limits but got null');
+    }
   });
 });
