@@ -2,7 +2,11 @@
 
 import * as vscode from 'vscode';
 import { buildRequestHeaders, normalizeBaseUrl } from './auth';
-import { ENDPOINTS_SECRET_KEY, EPHEMERAL_FILTER_SECRET_KEY, MAX_TOOLS_PER_REQUEST } from './constants';
+import {
+  ENDPOINTS_SECRET_KEY,
+  EPHEMERAL_FILTER_SECRET_KEY,
+  MAX_TOOLS_PER_REQUEST,
+} from './constants';
 import { Logger } from './log';
 import { fetchModelsForEndpoint, mapModelToChatInformation } from './models';
 import { SseChatParser } from './stream';
@@ -16,7 +20,7 @@ import type { BifrostEndpoint } from './types';
  *
  * Design notes:
  * - Never caches model information — fetches fresh from SecretStorage on each call
- * - Never subscribes to secrets.onDidChange
+ * - Fires onDidChangeLanguageModelChatInformation when limits are updated
  * - Uses default endpoint if none stored (KD3)
  */
 export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
@@ -25,6 +29,8 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
   private _userAgent: string;
   private _logger: Logger;
   private _filterEphemeral: boolean = true;
+  private _onDidChangeLanguageModelChatInformation: vscode.EventEmitter<void> =
+    new vscode.EventEmitter<void>();
 
   constructor(
     secrets: vscode.SecretStorage,
@@ -55,7 +61,18 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
     this._filterEphemeral = enabled;
   }
 
+  /**
+   * Fire event to notify VS Code that language model information has changed.
+   */
+  public fireLanguageModelChangeEvent(): void {
+    this._onDidChangeLanguageModelChatInformation.fire();
+  }
+
   // ─── VS Code LanguageModelChatProvider interface ──────────────────────────
+
+  get onDidChangeLanguageModelChatInformation(): vscode.Event<void> {
+    return this._onDidChangeLanguageModelChatInformation.event;
+  }
 
   /**
    * Return the list of available language models.
@@ -72,7 +89,7 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
       try {
         const result = await fetchModelsForEndpoint(endpoint, this._userAgent, this._logger);
         for (const model of result.models) {
-          infos.push(mapModelToChatInformation(model, endpoint.shortname));
+          infos.push(mapModelToChatInformation(model, endpoint.shortname, endpoint));
         }
       } catch (e) {
         this._logger.warn(
@@ -105,7 +122,9 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
     const endpoints = await this.getEndpoints();
     const endpoint = endpoints.find(e => e.shortname === shortname);
     if (!endpoint) {
-      throw new Error(`No Bifrost endpoint configured for model "${modelId}". Run "Manage Bifrost Provider" to add one.`);
+      throw new Error(
+        `No Bifrost endpoint configured for model "${modelId}". Run "Manage Bifrost Provider" to add one.`,
+      );
     }
 
     // Convert VS Code messages → OpenAI format
@@ -114,33 +133,50 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
     // Convert tools
     const openaiTools = options.tools ? convertTools(options.tools) : undefined;
 
-    // Guard: reject requests that exceed 128k token estimate
-    if (checkTokenLimit(openaiMessages, openaiTools, 128_000)) {
+    // Guard: reject requests that exceed the input budget advertised for this model.
+    if (checkTokenLimit(openaiMessages, openaiTools, model.maxInputTokens)) {
       throw new Error('Request exceeds maximum input token limit');
     }
 
-    // Resolve max_tokens: endpoint override > model catalog > fallback
-    const maxTokens = endpoint.maxOutputTokens ?? model.maxOutputTokens ?? 4096;
+    // Passthrough keeps the upstream output budget: do not apply the endpoint-wide
+    // cap and do not invent a fallback. Otherwise endpoint cap > manual > advertised.
+    // The advertised budget already fits inside the loaded window, so prompt + max_tokens
+    // cannot exceed the window VS Code was told about.
+    const manualOutput = getModelTokenLimit(endpoint, bifrostModelId, 'maxOutputTokens');
+    const advertisedOutput =
+      typeof model.maxOutputTokens === 'number' && model.maxOutputTokens > 0
+        ? Math.floor(model.maxOutputTokens)
+        : undefined;
+    const selected = endpoint.passthroughHyperparameters
+      ? (advertisedOutput ?? manualOutput)
+      : (endpoint.maxOutputTokens ?? manualOutput ?? advertisedOutput ?? 4096);
+    // Never ask the upstream for more completion tokens than the budget advertised
+    // to VS Code. That budget already fits inside the loaded window.
+    const maxTokens =
+      selected !== undefined && advertisedOutput !== undefined
+        ? Math.min(selected, advertisedOutput)
+        : selected;
 
     // Build request body
     const requestBody: Record<string, unknown> = {
       model: bifrostModelId,
       messages: openaiMessages,
       stream: true,
-      max_tokens: maxTokens,
     };
+    if (maxTokens !== undefined) {
+      requestBody.max_tokens = maxTokens;
+    }
 
     // Guard: too many tools
     if (options.tools && options.tools.length > MAX_TOOLS_PER_REQUEST) {
-      throw new Error(`Too many tools: ${options.tools.length} exceeds maximum of ${MAX_TOOLS_PER_REQUEST}`);
+      throw new Error(
+        `Too many tools: ${options.tools.length} exceeds maximum of ${MAX_TOOLS_PER_REQUEST}`,
+      );
     }
 
     if (openaiTools) {
       requestBody.tools = openaiTools;
-      if (
-        options.tools &&
-        options.toolMode === vscode.LanguageModelChatToolMode.Required
-      ) {
+      if (options.tools && options.toolMode === vscode.LanguageModelChatToolMode.Required) {
         requestBody.tool_choice = 'any';
       }
     }
@@ -264,3 +300,31 @@ export class BifrostChatProvider implements vscode.LanguageModelChatProvider {
 
 // Exported for use from extension.ts ephemeral toggle command
 export { EPHEMERAL_FILTER_SECRET_KEY };
+
+/**
+ * Get model-specific token limit from endpoint configuration
+ * @param endpoint - The Bifrost endpoint configuration
+ * @param modelId - The model ID to look up
+ * @param limitType - 'maxInputTokens' or 'maxOutputTokens'
+ * @returns The token limit value, or undefined if not configured
+ */
+function getModelTokenLimit(
+  endpoint: BifrostEndpoint,
+  modelId: string,
+  limitType: 'maxInputTokens' | 'maxOutputTokens',
+): number | undefined {
+  if (!endpoint.modelTokenLimits) {
+    return undefined;
+  }
+
+  const limit = endpoint.modelTokenLimits.find(
+    l => l.modelId.trim().toLowerCase() === modelId.trim().toLowerCase(),
+  );
+  // 'catalog' entries are a snapshot of a previous refresh. Live detection wins.
+  // Missing source is a hand-entered limit from before the source field existed.
+  if (!limit || limit.source === 'catalog') {
+    return undefined;
+  }
+
+  return limitType === 'maxInputTokens' ? limit.maxInputTokens : limit.maxOutputTokens;
+}

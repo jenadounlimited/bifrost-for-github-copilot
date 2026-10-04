@@ -9,8 +9,14 @@ function makeSecrets(initial: Record<string, string> = {}): import('vscode').Sec
   const store = { ...initial };
   return {
     get: (k: string) => Promise.resolve(store[k]),
-    store: (k: string, v: string) => { store[k] = v; return Promise.resolve(); },
-    delete: (k: string) => { delete store[k]; return Promise.resolve(); },
+    store: (k: string, v: string) => {
+      store[k] = v;
+      return Promise.resolve();
+    },
+    delete: (k: string) => {
+      delete store[k];
+      return Promise.resolve();
+    },
     keys: () => Promise.resolve(Object.keys(store)),
     onDidChange: { event: () => ({ dispose: () => {} }) } as never,
   };
@@ -60,14 +66,24 @@ describe('BifrostChatProvider.getEndpoints', () => {
 
   it('returns empty array when stored value is malformed JSON', async () => {
     const secrets = makeSecrets({ 'bifrost.endpoints': 'NOT JSON' });
-    const provider = new BifrostChatProvider(secrets, outputChannel, 'ua', new MockLogger() as never);
+    const provider = new BifrostChatProvider(
+      secrets,
+      outputChannel,
+      'ua',
+      new MockLogger() as never,
+    );
     const result = await provider.getEndpoints();
     expect(result).toEqual([]);
   });
 
   it('returns empty array when stored value is not an array', async () => {
     const secrets = makeSecrets({ 'bifrost.endpoints': '{"key":"value"}' });
-    const provider = new BifrostChatProvider(secrets, outputChannel, 'ua', new MockLogger() as never);
+    const provider = new BifrostChatProvider(
+      secrets,
+      outputChannel,
+      'ua',
+      new MockLogger() as never,
+    );
     const result = await provider.getEndpoints();
     expect(result).toEqual([]);
   });
@@ -76,7 +92,9 @@ describe('BifrostChatProvider.getEndpoints', () => {
 describe('BifrostChatProvider.setEndpoints', () => {
   it('persists endpoints to SecretStorage', async () => {
     const provider = makeProvider();
-    const endpoints: BifrostEndpoint[] = [{ shortname: 'remote', url: 'https://api.example.com/openai/v1' }];
+    const endpoints: BifrostEndpoint[] = [
+      { shortname: 'remote', url: 'https://api.example.com/openai/v1' },
+    ];
     await provider.setEndpoints(endpoints);
     const result = await provider.getEndpoints();
     expect(result).toHaveLength(1);
@@ -136,8 +154,13 @@ function makeCancellationToken(cancelled = false) {
   const listeners: (() => void)[] = [];
   return {
     isCancellationRequested: cancelled,
-    onCancellationRequested: (fn: () => void) => { listeners.push(fn); return { dispose: () => {} }; },
-    cancel: () => { listeners.forEach(fn => fn()); },
+    onCancellationRequested: (fn: () => void) => {
+      listeners.push(fn);
+      return { dispose: () => {} };
+    },
+    cancel: () => {
+      listeners.forEach(fn => fn());
+    },
   } as never;
 }
 
@@ -146,7 +169,9 @@ function makeProgress() {
   return { report: (p: unknown) => parts.push(p), parts };
 }
 
-function fakeModel(overrides: Partial<import('vscode').LanguageModelChatInformation> = {}): import('vscode').LanguageModelChatInformation {
+function fakeModel(
+  overrides: Partial<import('vscode').LanguageModelChatInformation> = {},
+): import('vscode').LanguageModelChatInformation {
   return {
     id: 'local/gpt-4o',
     name: 'GPT-4o',
@@ -274,8 +299,59 @@ describe('BifrostChatProvider.provideLanguageModelChatResponse', () => {
         token,
       );
 
-      const body = JSON.parse((fetchMock.mock.calls[0] as [string, { body: string }])[1].body) as Record<string, unknown>;
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as Record<string, unknown>;
       expect(body.tool_choice).toBe('any');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('sends the advertised output budget when passthrough is on', async () => {
+    const provider = makeProvider([
+      {
+        ...endpoint,
+        passthroughHyperparameters: true,
+        maxOutputTokens: 1024,
+        modelTokenLimits: [{ modelId: 'gpt-4o', maxOutputTokens: 2048, source: 'manual' as const }],
+      },
+    ]);
+    const fetchMock = makeFetchMock(basicSse);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await provider.provideLanguageModelChatResponse(
+        fakeModel({ maxOutputTokens: 8192, maxInputTokens: 120_000 }),
+        [{ role: 1, content: [{ value: 'go' } as never] } as never],
+        { tools: undefined, toolMode: undefined } as never,
+        makeProgress() as never,
+        makeCancellationToken(),
+      );
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as Record<string, unknown>;
+      expect(body.max_tokens).toBe(8192);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not send more completion tokens than the advertised budget', async () => {
+    const provider = makeProvider([{ ...endpoint, maxOutputTokens: 100_000 }]);
+    const fetchMock = makeFetchMock(basicSse);
+    vi.stubGlobal('fetch', fetchMock);
+    try {
+      await provider.provideLanguageModelChatResponse(
+        fakeModel({ maxOutputTokens: 4096 }),
+        [{ role: 1, content: [{ value: 'go' } as never] } as never],
+        { tools: undefined, toolMode: undefined } as never,
+        makeProgress() as never,
+        makeCancellationToken(),
+      );
+      const body = JSON.parse(
+        (fetchMock.mock.calls[0] as [string, { body: string }])[1].body,
+      ) as Record<string, unknown>;
+      expect(body.max_tokens).toBe(4096);
     } finally {
       vi.unstubAllGlobals();
     }
@@ -293,15 +369,21 @@ describe('BifrostChatProvider.provideLanguageModelChatInformation', () => {
   });
 
   it('returns model list from a configured endpoint', async () => {
-    const endpoint: BifrostEndpoint = { shortname: 'local', url: 'http://localhost:8080/openai/v1' };
+    const endpoint: BifrostEndpoint = {
+      shortname: 'local',
+      url: 'http://localhost:8080/openai/v1',
+    };
     const provider = makeProvider([endpoint]);
     const fakeToken = { isCancellationRequested: false, onCancellationRequested: vi.fn() } as never;
 
-    vi.stubGlobal('fetch', vi.fn().mockResolvedValue({
-      ok: true,
-      status: 200,
-      json: async () => ({ data: [{ id: 'gpt-4o', name: 'GPT-4o' }] }),
-    }));
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue({
+        ok: true,
+        status: 200,
+        json: async () => ({ data: [{ id: 'gpt-4o', name: 'GPT-4o' }] }),
+      }),
+    );
 
     try {
       const result = await provider.provideLanguageModelChatInformation({} as never, fakeToken);
@@ -313,7 +395,10 @@ describe('BifrostChatProvider.provideLanguageModelChatInformation', () => {
   });
 
   it('gracefully handles fetch errors and returns remaining models', async () => {
-    const endpoint: BifrostEndpoint = { shortname: 'local', url: 'http://localhost:8080/openai/v1' };
+    const endpoint: BifrostEndpoint = {
+      shortname: 'local',
+      url: 'http://localhost:8080/openai/v1',
+    };
     const provider = makeProvider([endpoint]);
     const fakeToken = { isCancellationRequested: false, onCancellationRequested: vi.fn() } as never;
 
