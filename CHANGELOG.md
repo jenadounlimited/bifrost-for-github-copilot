@@ -6,6 +6,28 @@ Format follows [Keep a Changelog](https://keepachangelog.com/en/1.0.0/). Version
 
 ---
 
+## [0.3.0] — 2026-10-03
+
+### Added
+
+- **Loaded context windows** — the language-models dialog Context Size follows the loaded upstream window (`context_length`, `recipe_options.ctx_size`, OpenAI-compat `context_window`, or the smaller `top_provider.context_length`) instead of the 128k heuristic. Lemonade's `max_context_window` stays an architecture ceiling and is not advertised on its own
+- **Upstream catalog fetch** — when passthrough is on, an optional upstream catalog base (for example a Lemonade `/v1` URL) is read at `/models` without the Bifrost virtual key. Rows match by full id, Bifrost `alias`, or the id after the provider slash, including `extra_fields.raw_response` when Bifrost returns it
+- **Manage Model Limits** — command and model-picker menu item to auto-populate, edit, or clear per-model input and output limits
+- **Passthrough hyperparameters** — per-gateway switch that shows the loaded window and skips the endpoint-wide output cap
+
+### Changed
+
+- Chat requests send `max_tokens` from the advertised output budget when passthrough is on, and never ask for more completion tokens than the dialog was told
+- Manual limits still apply when no loaded window is known. When a window is known and passthrough is off, manual limits are clamped so input plus output cannot exceed that window
+- Saving a gateway or model-limit change refreshes the language model picker
+- Test suite expanded to 210 tests
+
+### Fixed
+
+- Context Size stuck at 144K (128000 input + 16000 output) when Bifrost's model list omitted the loaded Lemonade window
+
+---
+
 ## [0.2.0] — 2026-09-02
 
 ### Added
