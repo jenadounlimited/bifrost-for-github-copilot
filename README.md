@@ -61,6 +61,28 @@ docker run -p 8080:8080 maximhq/bifrost
 4. Test connection to gateways
 5. Open dashboard in browser
 
+#### Token Limits Configuration
+
+Each gateway supports custom token limits per model:
+
+- **Max Output Tokens**: Override the default max output tokens for all models from this gateway
+- **Model-Specific Limits**: Set custom token limits for specific models (e.g., `gpt-4o`, `claude-3-5-sonnet`)
+- **Passthrough Hyperparameters**: When enabled, let target models set their own defaults instead of using gateway overrides
+
+**Auto-populated Defaults**: When you first add a gateway, model limits are automatically populated from the Bifrost API catalog. This ensures accurate context windows for each model.
+
+**Separate Management**: Model limits are managed independently from gateway configuration via **Manage Model Limits** in the gateway management UI. This provides a focused workflow for fine-tuning per-model token limits.
+
+To configure:
+
+1. Run **Manage Bifrost Provider**
+2. Select **Manage Model Limits** (new in v0.3.0)
+3. Choose from options:
+   - **Auto-populate from Catalog**: Fetch current limits from Bifrost API (recommended)
+   - **Edit All Limits**: Manually adjust limits for each model
+   - **Clear All Limits**: Remove all custom limits
+4. When editing, enter custom values or leave blank to use catalog defaults
+
 ### MCP Tools (Auto-Registered)
 
 Every gateway you add is automatically registered as an MCP server at `{origin}/mcp` using the same virtual key you already stored. No extra setup is required.
